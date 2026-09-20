@@ -3,36 +3,58 @@ import { APP_NAME, ROUTE_PATH } from '@/constants/app'
 import { useUserStore } from '@/stores/user'
 
 /**
- * 路由守卫骨架（T3）
+ * 路由守卫
  *
- * 三条职责：
- *   1. 设置页面标题
- *   2. 登录态：非公开页未登录 → 去登录页（带 redirect）
- *   3. 角色骨架：管理端页面需要管理端资格（超管 / 社长团 / 部长）
+ * 顺序：
+ *   1. 页面标题
+ *   2. 系统初始化：未初始化 → 强制去引导页；已初始化 → 引导页不可再进
+ *   3. 登录态：公开页放行，其余未登录跳登录页（带 redirect）
+ *   4. 首登强制改密：未改密只能待在改密页（后端拦截器同样会兜底）
+ *   5. 角色骨架：管理端资格 / 超管专属页
  *
  * 真正的权限判定在后端；前端只负责"别让用户点进去白跑一趟"。
  */
 export function setupRouterGuard(router) {
-  router.beforeEach((to) => {
+  router.beforeEach(async (to) => {
     document.title = to.meta.title ? `${to.meta.title} · ${APP_NAME}` : APP_NAME
 
     const userStore = useUserStore()
 
-    // 公开页（登录 / 报名 / 查询 / 404）
+    // 1. 系统初始化状态（会话内只请求一次）
+    let initialized = true
+    try {
+      initialized = await userStore.fetchInitStatus()
+    } catch {
+      // 后端不可用时保持 true（不强制跳引导页），避免把用户卡死在这一步
+    }
+    if (!initialized) {
+      // 未初始化：只允许待在引导页
+      return to.path === ROUTE_PATH.INIT ? true : { path: ROUTE_PATH.INIT }
+    }
+    if (to.path === ROUTE_PATH.INIT) {
+      // 已初始化：引导页不可再进
+      return { path: ROUTE_PATH.LOGIN }
+    }
+
+    // 2. 公开页
     if (to.meta.public) {
-      // 已登录用户访问登录页 → 回首页
       if (to.name === 'login' && userStore.isLoggedIn) {
         return { path: ROUTE_PATH.HOME }
       }
       return true
     }
 
-    // 需要登录
+    // 3. 需要登录
     if (!userStore.isLoggedIn) {
       return { path: ROUTE_PATH.LOGIN, query: { redirect: to.fullPath } }
     }
 
-    // 管理端资格（T4 接入真实登录后由 profile 推导生效）
+    // 4. 首登强制改密
+    if (userStore.needChangePassword && to.path !== ROUTE_PATH.CHANGE_PASSWORD) {
+      return { path: ROUTE_PATH.CHANGE_PASSWORD }
+    }
+
+    // 5. 角色骨架
     if (to.meta.admin && !userStore.canEnterAdminPage) {
       ElMessage.warning('没有管理端访问权限')
       return { path: ROUTE_PATH.HOME }

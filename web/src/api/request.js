@@ -9,6 +9,11 @@ import { ROUTE_PATH, STORAGE_KEY, TOKEN_HEADER } from '@/constants/app'
 export const CODE = {
   SUCCESS: 200,
   PARAM_ERROR: 40000,
+  CAPTCHA_INVALID: 40001,
+  LOGIN_FAILED: 40002,
+  ACCOUNT_LOCKED: 40003,
+  ACCOUNT_FROZEN: 40004,
+  NEED_CHANGE_PASSWORD: 40005,
   UNAUTHORIZED: 40100,
   FORBIDDEN: 40300,
   NOT_FOUND: 40400,
@@ -50,6 +55,14 @@ async function redirectToLogin() {
   }
 }
 
+/** 跳到改密页（首登强制改密；同样的动态引入避免循环依赖） */
+async function redirectToChangePassword() {
+  const { default: router } = await import('@/router')
+  if (router.currentRoute.value.path !== ROUTE_PATH.CHANGE_PASSWORD) {
+    await router.replace({ path: ROUTE_PATH.CHANGE_PASSWORD })
+  }
+}
+
 service.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem(STORAGE_KEY.TOKEN)
@@ -75,6 +88,10 @@ service.interceptors.response.use(
     if (body.code === CODE.UNAUTHORIZED) {
       await redirectToLogin()
       ElMessage.warning(body.message || '登录已过期，请重新登录')
+    } else if (body.code === CODE.NEED_CHANGE_PASSWORD) {
+      // 首登未改密：后端会拦下其他接口，这里同步把用户送到改密页
+      ElMessage.warning(body.message || '首次登录需先修改密码')
+      await redirectToChangePassword()
     } else if (body.code === CODE.FORBIDDEN) {
       ElMessage.error(body.message || '无权限访问')
     } else if (body.code === CODE.SYSTEM_ERROR || body.code === CODE.DOWNSTREAM_ERROR) {

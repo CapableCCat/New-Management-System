@@ -30,6 +30,12 @@ const routes = [
         meta: { title: '登录', public: true, task: 'T4' }
       },
       {
+        path: 'init',
+        name: 'initAdmin',
+        component: () => import('@/views/auth/InitAdminView.vue'),
+        meta: { title: '系统初始化', public: true, task: 'T4' }
+      },
+      {
         path: 'apply',
         name: 'apply',
         component: () => import('@/views/public/ApplyView.vue'),

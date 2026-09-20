@@ -68,3 +68,10 @@ a {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 }
+
+/* Vant 表单：允许输入框收缩。
+   不加这条时，input 的默认 min-content 宽度（≈ size=20 字符）加上标签与后缀插槽
+   会撑破手机窄屏，导致整页横向溢出（表现为按钮、卡片右侧被切掉）。 */
+.van-field__control {
+  min-width: 0;
+}
