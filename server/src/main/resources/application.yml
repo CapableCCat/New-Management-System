@@ -34,6 +34,15 @@ osc:
   health:
     # 是否在 /health 里回显下游错误详情（公网环境务必关闭，避免泄漏内部信息）
     expose-detail: true
+  security:
+    # 登录失败锁定：连续失败达到次数即锁定，锁定时长内不再校验密码
+    login-max-fail: ${OSC_LOGIN_MAX_FAIL:5}
+    login-lock-minutes: ${OSC_LOGIN_LOCK_MINUTES:15}
+    # 图形验证码有效期（秒），校验通过后立即作废
+    captcha-ttl-seconds: ${OSC_CAPTCHA_TTL:120}
+    # 密码强度：长度区间 + 必须同时包含字母与数字（见 PasswordPolicy）
+    password-min-length: ${OSC_PASSWORD_MIN_LENGTH:8}
+    password-max-length: ${OSC_PASSWORD_MAX_LENGTH:20}
 
 # 鉴权：Sa-Token（Header 模式，token 存 Redis，重启不掉线）
 sa-token:

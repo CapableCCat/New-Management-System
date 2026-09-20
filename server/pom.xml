@@ -24,6 +24,8 @@
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <sa-token.version>1.44.0</sa-token.version>
         <knife4j.version>4.5.0</knife4j.version>
+        <easy-captcha.version>1.6.2</easy-captcha.version>
+        <nashorn.version>15.7</nashorn.version>
     </properties>
 
     <dependencies>
@@ -94,18 +96,23 @@
         </dependency>
         -->
 
-        <!-- T4 启用：算术图形验证码（JDK 17 已移除 Nashorn，必须另补 nashorn-core）
+        <!-- 密码加密：只用 BCrypt 编码器，不引入 spring-security 的鉴权链 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <!-- 算术图形验证码；JDK 17 已移除 Nashorn，必须另补 nashorn-core -->
         <dependency>
             <groupId>com.github.whvcse</groupId>
             <artifactId>easy-captcha</artifactId>
-            <version>1.6.2</version>
+            <version>${easy-captcha.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjdk.nashorn</groupId>
             <artifactId>nashorn-core</artifactId>
-            <version>15.4</version>
+            <version>${nashorn.version}</version>
         </dependency>
-        -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
