@@ -1,0 +1,58 @@
+# ============================================================
+# prod 环境：公网部署
+# 建议：由 Nginx 反代 + HTTPS 对外，后端只监听内网/本机；secrets 全部走服务器环境变量
+# ============================================================
+server:
+  port: ${APP_PORT:8081}
+  # 需要限制只监听本机时放开下一行（配合 Nginx 反代）
+  # address: 127.0.0.1
+  tomcat:
+    threads:
+      max: 200
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DB:osc}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: ${MYSQL_USER:osc_app}
+    password: ${MYSQL_PASSWORD:}
+    hikari:
+      pool-name: osc-hikari
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 3000
+      validation-timeout: 2000
+      initialization-fail-timeout: -1
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      # 线上 Redis 必须带密码：放开下一行并在服务器环境变量里配置 REDIS_PASSWORD
+      # password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+          max-wait: 2000ms
+
+# 公网环境不暴露错误详情与接口文档
+osc:
+  health:
+    expose-detail: false
+
+knife4j:
+  enable: false
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: info
+    com.tsguosc: info

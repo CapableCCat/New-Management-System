@@ -1,0 +1,77 @@
+# ============================================================
+# OSC 社团管理系统 · 后端公共配置
+# 环境相关项一律走环境变量（.env / 系统环境变量），明文不入仓
+# ============================================================
+spring:
+  application:
+    name: osc-server
+  profiles:
+    # 默认 dev；prod 部署时可覆盖
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  config:
+    # 可选导入 server/.env（文件不存在时静默跳过，靠各配置项的默认值兜底）
+    import: optional:file:./.env[.properties]
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+  mvc:
+    problemdetails:
+      enabled: false
+
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+  error:
+    whitelabel:
+      enabled: false
+
+# 应用自有配置
+osc:
+  app:
+    version: @project.version@
+  health:
+    # 是否在 /health 里回显下游错误详情（公网环境务必关闭，避免泄漏内部信息）
+    expose-detail: true
+
+# 鉴权：Sa-Token（Header 模式，token 存 Redis，重启不掉线）
+sa-token:
+  token-name: ${SA_TOKEN_NAME:osc-token}
+  # token 有效期（秒），2592000 = 30 天
+  timeout: ${SA_TOKEN_TIMEOUT:2592000}
+  # 临时活跃有效期：-1 表示不限制
+  active-timeout: -1
+  # 允许同一账号多端登录
+  is-concurrent: true
+  # 多端登录时不共用同一 token
+  is-share: false
+  token-style: uuid
+  # 只从 Header 读取 token，不用 Cookie（见 PRD F-002）
+  is-read-cookie: false
+  is-read-header: true
+  is-log: false
+
+# ORM：MyBatis-Plus（T2 起接入 Mapper）
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  mapper-locations: classpath*:mapper/**/*.xml
+
+# 接口文档：默认全关，仅 dev 打开（防止公网误暴露）
+knife4j:
+  enable: false
+  setting:
+    language: zh_cn
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
