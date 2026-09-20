@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -112,8 +113,10 @@ public class AuthServiceImpl implements AuthService {
         admin.setDuty(DUTY_PRESIDENT);
         admin.setStatus(STATUS_NORMAL);
         admin.setGender(0);
-        // 首登强制改密：引导页设置的密码仍需在首次登录后更换一次（见 T4 自测要点）
-        admin.setActivatedAt(null);
+        // 引导页是本人当场设置的密码，直接标记为已激活，不再强制改密；
+        // 由审核通过（T7）/ Excel 导入（T13）/ 管理员重置（F-002）创建的账号才用
+        // 系统随机初始密码 + activated_at=NULL，登录后被强制改密
+        admin.setActivatedAt(LocalDateTime.now());
         userMapper.insert(admin);
 
         log.info("系统初始化完成，已创建首个超管：id={}, phone={}", admin.getId(), phone);
