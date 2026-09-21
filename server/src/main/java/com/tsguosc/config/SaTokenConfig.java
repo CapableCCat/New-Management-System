@@ -35,6 +35,8 @@ public class SaTokenConfig implements WebMvcConfigurer {
             "/auth/login",
             // 字典公开读：/dict/types 与 /dict/{type}（两段路径）；/dict/admin/** 是三段，不在白名单内
             "/dict/*",
+            // 公开报名：/recruit/info 与 /recruit/apply（两段路径），提交时仍需图形验证码
+            "/recruit/*",
             // dev 接口文档（prod 下 knife4j/springdoc 已整体关闭）
             "/doc.html",
             "/webjars/**",

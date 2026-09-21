@@ -17,6 +17,7 @@ import com.tsguosc.dto.UserVO;
 import com.tsguosc.entity.User;
 import com.tsguosc.mapper.UserMapper;
 import com.tsguosc.service.AuthService;
+import com.tsguosc.util.CaptchaValidator;
 import com.tsguosc.util.PasswordPolicy;
 import com.wf.captcha.ArithmeticCaptcha;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +61,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordPolicy passwordPolicy;
     private final SecurityProperties securityProperties;
     private final StringRedisTemplate stringRedisTemplate;
+    private final CaptchaValidator captchaValidator;
 
     @Override
     public CaptchaVO createCaptcha() {
@@ -124,7 +126,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginVO login(LoginRequest request) {
-        validateCaptcha(request.captchaKey(), request.captchaCode());
+        captchaValidator.validateAndConsume(request.captchaKey(), request.captchaCode());
 
         String phone = request.phone().trim();
         checkLocked(phone);
@@ -167,19 +169,6 @@ public class AuthServiceImpl implements AuthService {
     // ------------------------------------------------------------
     // 内部方法
     // ------------------------------------------------------------
-
-    /** 校验验证码：无论对错都立即作废（一次性，防重放） */
-    private void validateCaptcha(String captchaKey, String captchaCode) {
-        String redisKey = RedisKeys.CAPTCHA_PREFIX + captchaKey;
-        String answer = stringRedisTemplate.opsForValue().get(redisKey);
-        if (!StringUtils.hasText(answer)) {
-            throw new BusinessException(ResultCode.CAPTCHA_INVALID, "验证码已过期，请点击图片刷新");
-        }
-        stringRedisTemplate.delete(redisKey);
-        if (!answer.equalsIgnoreCase(captchaCode.trim())) {
-            throw new BusinessException(ResultCode.CAPTCHA_INVALID);
-        }
-    }
 
     private void checkLocked(String phone) {
         String key = RedisKeys.LOGIN_FAIL_PREFIX + phone;
