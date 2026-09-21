@@ -8,6 +8,9 @@ export const getRecruitInfo = () => request.get('/recruit/info')
 /** 提交报名（公开，需图形验证码） */
 export const submitApply = (data) => request.post('/recruit/apply', data)
 
+/** 查询审核状态（公开，需图形验证码；只返回状态与拒绝原因，未找到时 data 为 null） */
+export const queryApplyStatus = (data) => request.post('/recruit/status', data)
+
 /* ---------------- 审核管理台（需登录） ---------------- */
 
 /** 报名列表（分页 + 筛选；部长自动只返回意向含本部门的记录） */
