@@ -27,3 +27,6 @@ export const approveApplyBatch = (data) => request.post('/recruit/admin/approve-
 
 /** 拒绝：原因必填 */
 export const rejectApply = (data) => request.post('/recruit/admin/reject', data)
+
+/** 短信通知提效工具所需配置（系统链接 + 两个短信模板，审核台角色只读） */
+export const getSmsConfig = () => request.get('/recruit/admin/sms-config')

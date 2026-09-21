@@ -6,20 +6,24 @@ import {
   approveApplyBatch,
   getApplyList,
   getApplyStats,
+  getSmsConfig,
   rejectApply
 } from '@/api/recruit'
 import { useDictStore } from '@/stores/dict'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { copyText } from '@/utils/sms'
+import SmsNotifyDialog from '@/components/SmsNotifyDialog.vue'
 
 /**
- * 审核管理台（PRD F-003，纳新主链核心）
+ * 审核管理台（PRD F-003，纳新主链核心）+ 短信通知提效工具（PRD F-004）
  *
  * 要点：
  *   - 数据隔离由后端决定（部长只看"意向部门含本部门"的记录），前端只按角色控制可见性
  *   - 通过 = 建号（随机初始密码 + 首登强制改密），明文密码只在结果弹窗出现一次
  *   - 拒绝必须填原因（会展示给被拒者）
- *   - 仅"待审"记录可操作；批量通过返回密码清单（可复制 / 下载 CSV）
+ *   - 多选对所有行开放：批量通过只吃勾选的「待审」，批量发送短信只吃勾选的「已处理」
+ *   - 短信工具不代发，只拼话术 + 复制（移动端可 sms: 唤起）
  */
 const isMobile = useIsMobile()
 const dictStore = useDictStore()
@@ -60,7 +64,17 @@ const result = ref(null)
 
 const rejectVisible = ref(false)
 const rejectSaving = ref(false)
-const rejectForm = reactive({ id: null, name: '', reason: '' })
+const rejectForm = reactive({ id: null, name: '', phone: '', reason: '' })
+
+/* ---- 短信通知提效工具（F-004） ---- */
+const smsVisible = ref(false)
+const smsTitle = ref('短信通知')
+const smsTargets = ref([])
+const smsConfig = ref({ systemUrl: '', passTemplate: '', rejectTemplate: '' })
+
+/** 勾选行按状态分桶：批量通过只吃待审，批量发送短信只吃已处理 */
+const selectedPending = computed(() => selectedRows.value.filter((row) => row.status === 0))
+const selectedDone = computed(() => selectedRows.value.filter((row) => row.status !== 0))
 
 const colleges = computed(() => dictStore.cache.college || [])
 const departments = computed(() => dictStore.cache.department || [])
@@ -184,8 +198,7 @@ function openApprove(row) {
 }
 
 function openApproveBatch() {
-  const pending = selectedRows.value.filter((row) => row.status === 0)
-  if (!pending.length) {
+  if (!selectedPending.value.length) {
     ElMessage.warning('请先勾选待审记录')
     return
   }
@@ -208,7 +221,7 @@ async function submitApprove() {
       })
     } else {
       data = await approveApplyBatch({
-        ids: selectedRows.value.filter((row) => row.status === 0).map((row) => row.id),
+        ids: selectedPending.value.map((row) => row.id),
         duty: approveForm.duty
       })
     }
@@ -228,6 +241,7 @@ async function submitApprove() {
 function openReject(row) {
   rejectForm.id = row.id
   rejectForm.name = row.name
+  rejectForm.phone = row.phone
   rejectForm.reason = ''
   rejectVisible.value = true
 }
@@ -239,15 +253,76 @@ async function submitReject() {
   }
   rejectSaving.value = true
   try {
-    await rejectApply({ id: rejectForm.id, reason: rejectForm.reason.trim() })
+    const reason = rejectForm.reason.trim()
+    await rejectApply({ id: rejectForm.id, reason })
     ElMessage.success('已拒绝该报名')
     rejectVisible.value = false
     reloadAll()
+    // 拒绝后接着弹短信通知，省得干部再去列表里找这条记录
+    openSmsDialog(
+      [
+        {
+          name: rejectForm.name,
+          phone: rejectForm.phone,
+          status: 2,
+          rejectReason: reason
+        }
+      ],
+      '通知被拒同学'
+    )
   } catch {
     // 拦截器已提示
   } finally {
     rejectSaving.value = false
   }
+}
+
+/* ---------------- 短信通知提效工具（F-004） ---------------- */
+
+/**
+ * 打开短信话术弹窗。
+ *
+ * <p>打开前现拉一次配置，保证超管刚改的模板立即生效。
+ */
+async function openSmsDialog(targets, title) {
+  if (!targets || !targets.length) {
+    ElMessage.warning('没有可通知的对象')
+    return
+  }
+  smsTargets.value = targets.map((item) => ({
+    name: item.name,
+    phone: item.phone,
+    status: item.status,
+    password: item.password || '',
+    rejectReason: item.rejectReason || ''
+  }))
+  smsTitle.value = title
+  try {
+    smsConfig.value = await getSmsConfig()
+  } catch {
+    smsConfig.value = { systemUrl: '', passTemplate: '', rejectTemplate: '' }
+  }
+  smsVisible.value = true
+}
+
+/** 通过后：通知新生（含初始密码，密码只在此处可得） */
+function notifyApproved() {
+  const targets = (result.value?.credentials || []).map((item) => ({ ...item, status: 1 }))
+  openSmsDialog(targets, '通知新生（含初始密码）')
+}
+
+/** 批量发送短信：只吃勾选的「已处理」记录（PRD F-004） */
+function openBatchSms() {
+  if (!selectedDone.value.length) {
+    ElMessage.warning('请先勾选已处理（通过 / 拒绝）的记录')
+    return
+  }
+  openSmsDialog(selectedDone.value, '批量发送短信')
+}
+
+/** 单条通知：仅「已拒绝」记录（通过记录的事后通知拿不到初始密码，改在创建结果弹窗里复制） */
+function notifyRejected(row) {
+  openSmsDialog([row], `通知 ${row.name}`)
 }
 
 /* ---------------- 密码清单 ---------------- */
@@ -260,10 +335,10 @@ function credentialsText() {
 }
 
 async function copyCredentials() {
-  try {
-    await navigator.clipboard.writeText(credentialsText())
+  const ok = await copyText(credentialsText())
+  if (ok) {
     ElMessage.success('已复制到剪贴板')
-  } catch {
+  } else {
     ElMessage.warning('复制失败，请手动选择文本复制')
   }
 }
@@ -307,8 +382,11 @@ onMounted(async () => {
         </p>
       </div>
       <div class="audit__head-actions">
-        <el-button :disabled="!selectedRows.length" @click="openApproveBatch">
-          批量通过{{ selectedRows.length ? `(${selectedRows.length})` : '' }}
+        <el-button :disabled="!selectedPending.length" @click="openApproveBatch">
+          批量通过{{ selectedPending.length ? `(${selectedPending.length})` : '' }}
+        </el-button>
+        <el-button :disabled="!selectedDone.length" @click="openBatchSms">
+          批量发送短信{{ selectedDone.length ? `(${selectedDone.length})` : '' }}
         </el-button>
         <el-button @click="reloadAll">刷新</el-button>
       </div>
@@ -356,7 +434,7 @@ onMounted(async () => {
       row-key="id"
       @selection-change="onSelectionChange"
     >
-      <el-table-column type="selection" width="46" :selectable="(row) => row.status === 0" />
+      <el-table-column type="selection" width="46" />
       <el-table-column prop="name" label="姓名" width="90" fixed="left" />
       <el-table-column prop="phone" label="手机号" width="118" />
       <el-table-column label="学院" width="120">
@@ -379,15 +457,24 @@ onMounted(async () => {
           <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="操作" width="170" fixed="right">
         <template #default="{ row }">
           <template v-if="row.status === 0">
             <el-button link type="primary" size="small" @click="openApprove(row)">通过</el-button>
             <el-button link type="danger" size="small" @click="openReject(row)">拒绝</el-button>
           </template>
-          <span v-else class="audit__done">
-            {{ timeLabel(row.reviewedAt) }}
-          </span>
+          <template v-else>
+            <el-button
+              v-if="row.status === 2"
+              link
+              type="primary"
+              size="small"
+              @click="notifyRejected(row)"
+            >
+              通知
+            </el-button>
+            <span class="audit__done">{{ timeLabel(row.reviewedAt) }}</span>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -418,7 +505,18 @@ onMounted(async () => {
           <el-button type="primary" size="small" @click="openApprove(row)">通过</el-button>
           <el-button type="danger" size="small" plain @click="openReject(row)">拒绝</el-button>
         </div>
-        <div v-else class="audit__card-meta">审核于 {{ timeLabel(row.reviewedAt) }}</div>
+        <div v-else class="audit__card-meta audit__card-done">
+          <span>审核于 {{ timeLabel(row.reviewedAt) }}</span>
+          <el-button
+            v-if="row.status === 2"
+            link
+            type="primary"
+            size="small"
+            @click="notifyRejected(row)"
+          >
+            通知
+          </el-button>
+        </div>
       </div>
       <p v-if="!loading && !list.length" class="audit__empty">暂无符合条件的报名</p>
     </div>
@@ -472,6 +570,7 @@ onMounted(async () => {
         </el-alert>
         <p class="audit__hint">
           初始密码只显示这一次，请立即通过短信告知本人；新生首次登录需修改密码。
+          点「复制通知话术」会按模板生成短信，批量通过时可在弹窗里逐条复制。
         </p>
         <el-table :data="result.credentials" border size="small">
           <el-table-column prop="name" label="姓名" width="100" />
@@ -486,6 +585,7 @@ onMounted(async () => {
       <template #footer>
         <el-button @click="copyCredentials">复制清单</el-button>
         <el-button @click="downloadCsv">下载 CSV</el-button>
+        <el-button @click="notifyApproved">复制通知话术</el-button>
         <el-button type="primary" @click="resultVisible = false">我已记录</el-button>
       </template>
     </el-dialog>
@@ -515,6 +615,14 @@ onMounted(async () => {
         <el-button type="danger" :loading="rejectSaving" @click="submitReject">确认拒绝</el-button>
       </template>
     </el-dialog>
+
+    <!-- 短信通知弹窗（F-004）：通过结果 / 拒绝后 / 批量发送 共用 -->
+    <SmsNotifyDialog
+      v-model="smsVisible"
+      :title="smsTitle"
+      :targets="smsTargets"
+      :config="smsConfig"
+    />
   </div>
 </template>
 
@@ -593,6 +701,13 @@ onMounted(async () => {
   color: #909399;
 }
 
+.audit__card-done {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .audit__card-actions {
   display: flex;
   gap: 8px;
@@ -630,5 +745,15 @@ onMounted(async () => {
   margin: 2px 0;
   font-size: 12px;
   color: #f56c6c;
+}
+
+@media (max-width: 768px) {
+  .audit__head {
+    flex-direction: column;
+  }
+
+  .audit__head-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>
