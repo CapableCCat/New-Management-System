@@ -24,6 +24,7 @@ const menuItems = computed(() => {
   ]
   if (userStore.isSuperAdminUser) {
     items.push({ index: '/admin/dict', label: '字典管理' })
+    items.push({ index: '/admin/settings', label: '纳新设置' })
   }
   return items
 })

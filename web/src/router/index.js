@@ -125,6 +125,12 @@ const routes = [
         meta: { title: '字典管理', admin: true, superAdmin: true, task: 'T5' }
       },
       {
+        path: 'settings',
+        name: 'adminSettings',
+        component: () => import('@/views/admin/SettingsView.vue'),
+        meta: { title: '纳新设置', admin: true, superAdmin: true, task: 'T6' }
+      },
+      {
         path: 'import',
         name: 'adminImport',
         component: () => import('@/views/admin/ImportView.vue'),

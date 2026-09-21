@@ -1,22 +1,588 @@
 <script setup>
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { areaList } from '@vant/area-data'
+import { getCaptcha } from '@/api/auth'
+import { getRecruitInfo, submitApply } from '@/api/recruit'
+import { useDictStore } from '@/stores/dict'
+
 /**
- * 公开报名页（占位）—— T6 实现
- * 纳新主链起点，移动第一体验（PRD F-001）
+ * 公开报名页（F-001）—— 纳新主链起点，移动优先
+ *
+ * 规则：
+ *   - 只写 recruit_apply，不建账号（审核通过后由 T7 建号）
+ *   - 手机号唯一：待审/已通过 → 友好拒绝；已拒绝 → 覆盖原记录并重置为待审
+ *   - 兴趣标签按 5 大类分组展示，最多选 3 个；选「其他」出现自由填写框
+ *   - 草稿存 localStorage，断网/误刷新不丢（PRD 要求保留已填内容）
  */
+const router = useRouter()
+const dictStore = useDictStore()
+
+const DRAFT_KEY = 'osc_apply_draft'
+const MAX_TAGS = 3
+
+const loadingInfo = ref(true)
+const saving = ref(false)
+const submitted = ref(false)
+const result = ref(null)
+const info = reactive({ open: true, clubIntro: '', reviewNotice: '' })
+const captchaImage = ref('')
+const privacyAgreed = ref(false)
+const pickerShow = ref(false)
+const pickerKind = ref('college')
+const pickerValue = ref([])
+const areaShow = ref(false)
+
+const form = reactive({
+  name: '',
+  phone: '',
+  college: '',
+  major: '',
+  majorText: '',
+  intentDepartments: [],
+  tags: [],
+  tagText: '',
+  gender: 0,
+  province: '',
+  city: '',
+  captchaKey: '',
+  captchaCode: ''
+})
+
+const departments = computed(() => dictStore.cache.department || [])
+const allTags = computed(() => dictStore.cache.tag || [])
+
+/** 标签按 remark 里的分类名分组（分类名由 T5 的字典种子写入） */
+const tagGroups = computed(() => {
+  const groups = new Map()
+  allTags.value.forEach((item) => {
+    const name = item.remark || '其他'
+    if (!groups.has(name)) {
+      groups.set(name, [])
+    }
+    groups.get(name).push(item)
+  })
+  return [...groups.entries()].map(([name, items]) => ({ name, items }))
+})
+
+/** 简介按空行分段 */
+const introParagraphs = computed(() =>
+  (info.clubIntro || '')
+    .split(/\n\s*\n/)
+    .map((text) => text.trim())
+    .filter(Boolean)
+)
+
+const isOtherMajor = computed(() => form.major === 'other')
+const isOtherTag = computed(() => form.tags.includes('other'))
+const collegeText = computed(() => (form.college ? dictStore.labelOf('college', form.college) : ''))
+const majorText = computed(() => {
+  if (!form.major) {
+    return ''
+  }
+  if (isOtherMajor.value) {
+    return form.majorText ? `其他（${form.majorText}）` : '其他'
+  }
+  return dictStore.labelOf('major', form.major)
+})
+const pickerTitle = computed(() => (pickerKind.value === 'college' ? '选择学院' : '选择专业'))
+const pickerColumns = computed(() =>
+  (pickerKind.value === 'college' ? dictStore.cache.college || [] : dictStore.cache.major || []).map(
+    (item) => ({ text: item.label, value: item.code })
+  )
+)
+
+function openPicker(kind) {
+  pickerKind.value = kind
+  const current = kind === 'college' ? form.college : form.major
+  pickerValue.value = current ? [current] : [pickerColumns.value[0]?.value]
+  pickerShow.value = true
+}
+
+function onPickerConfirm({ selectedValues }) {
+  const code = selectedValues?.[0]
+  if (pickerKind.value === 'college') {
+    form.college = code
+  } else {
+    form.major = code
+    if (code !== 'other') {
+      form.majorText = ''
+    }
+  }
+  pickerShow.value = false
+}
+
+function onAreaConfirm({ selectedOptions }) {
+  form.province = selectedOptions?.[0]?.name || ''
+  form.city = selectedOptions?.[1]?.name || ''
+  areaShow.value = false
+}
+
+function toggleDepartment(code) {
+  const index = form.intentDepartments.indexOf(code)
+  if (index >= 0) {
+    form.intentDepartments.splice(index, 1)
+  } else {
+    form.intentDepartments.push(code)
+  }
+}
+
+function toggleTag(code) {
+  const index = form.tags.indexOf(code)
+  if (index >= 0) {
+    form.tags.splice(index, 1)
+    if (code === 'other') {
+      form.tagText = ''
+    }
+    return
+  }
+  if (form.tags.length >= MAX_TAGS) {
+    ElMessage.warning(`兴趣标签最多选 ${MAX_TAGS} 个`)
+    return
+  }
+  form.tags.push(code)
+}
+
+/** 刷新验证码（一次性，提交失败必须换一张） */
+async function refreshCaptcha() {
+  form.captchaCode = ''
+  try {
+    const data = await getCaptcha()
+    form.captchaKey = data.captchaKey
+    captchaImage.value = data.captchaImage
+  } catch {
+    // 提示由 axios 拦截器统一处理
+  }
+}
+
+function saveDraft() {
+  if (submitted.value) {
+    return
+  }
+  try {
+    const draft = { ...form }
+    // 验证码是一次性的，不进草稿
+    delete draft.captchaKey
+    delete draft.captchaCode
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  } catch {
+    // 忽略：隐私模式下 localStorage 可能不可用
+  }
+}
+
+function restoreDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) {
+      return
+    }
+    const draft = JSON.parse(raw)
+    Object.keys(draft).forEach((key) => {
+      if (key in form) {
+        form[key] = draft[key]
+      }
+    })
+  } catch {
+    // 草稿损坏时忽略
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+async function onSubmit() {
+  if (!form.college) {
+    ElMessage.warning('请选择学院')
+    return
+  }
+  if (!form.major) {
+    ElMessage.warning('请选择专业')
+    return
+  }
+  if (isOtherMajor.value && !form.majorText.trim()) {
+    ElMessage.warning('请填写具体专业名称')
+    return
+  }
+  if (!form.intentDepartments.length) {
+    ElMessage.warning('请至少选择一个意向部门')
+    return
+  }
+  if (!privacyAgreed.value) {
+    ElMessage.warning('请先阅读并同意信息使用说明')
+    return
+  }
+
+  saving.value = true
+  try {
+    const data = await submitApply({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      college: form.college,
+      major: form.major,
+      majorText: isOtherMajor.value ? form.majorText.trim() : '',
+      intentDepartments: [...form.intentDepartments],
+      tags: [...form.tags],
+      tagText: isOtherTag.value ? form.tagText.trim() : '',
+      gender: form.gender,
+      province: form.province,
+      city: form.city,
+      captchaKey: form.captchaKey,
+      captchaCode: form.captchaCode
+    })
+    result.value = data
+    submitted.value = true
+    clearDraft()
+  } catch {
+    // 验证码一次性：失败必须换一张
+    refreshCaptcha()
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    const data = await getRecruitInfo()
+    Object.assign(info, data)
+  } catch {
+    info.open = false
+  } finally {
+    loadingInfo.value = false
+  }
+  if (info.open) {
+    restoreDraft()
+    await dictStore.loadMany(['college', 'major', 'department', 'tag'])
+    refreshCaptcha()
+  }
+})
+
+// 草稿自动暂存（captcha 字段在 saveDraft 里被排除）
+watch(form, saveDraft, { deep: true })
 </script>
 
 <template>
-  <div class="page">
-    <PlaceholderCard
-      title="入社报名"
-      task="T6"
-      desc="移动优先 H5 报名页：社团简介 + 表单 + 隐私勾选 + 成功页"
-      :points="[
-        '表单字段：姓名·手机号·学院·专业（含其他兜底）·意向部门多选·兴趣标签多选·性别（选填）·生源地（选填）',
-        '提交写入 recruit_apply（status=待审），不建账号；手机号唯一防重复',
-        '被拒绝者可重新提交（更新原记录，状态重置为待审）',
-        '弱网重试且保留已填内容；提交成功页告知审核时效与查询方式'
-      ]"
-    />
+  <div class="apply">
+    <van-empty v-if="loadingInfo" description="加载中…" />
+    <van-empty v-else-if="!info.open" image="error" description="本轮纳新报名已结束" />
+
+    <!-- 提交成功 -->
+    <div v-else-if="submitted" class="apply__success">
+      <van-icon name="passed" class="apply__success-icon" />
+      <p class="apply__success-title">报名提交成功</p>
+      <p class="apply__success-text">
+        我们已收到你用手机号 <b>{{ result?.phone }}</b> 提交的报名。
+      </p>
+      <p class="apply__success-text">{{ info.reviewNotice }}</p>
+      <p class="apply__success-tip">可随时到「查询审核状态」页，用手机号查看审核进度。</p>
+      <div class="apply__success-actions">
+        <van-button
+          round
+          block
+          type="primary"
+          @click="router.push({ path: '/query', query: { phone: result?.phone } })"
+        >
+          去查询审核状态
+        </van-button>
+      </div>
+    </div>
+
+    <!-- 报名表单 -->
+    <template v-else>
+      <section v-if="introParagraphs.length" class="apply__intro">
+        <p v-for="(text, index) in introParagraphs" :key="index" class="apply__intro-p">
+          {{ text }}
+        </p>
+      </section>
+
+      <van-form @submit="onSubmit">
+        <van-cell-group inset title="基本信息">
+          <van-field
+            v-model="form.name"
+            name="name"
+            label="姓名"
+            maxlength="32"
+            placeholder="请输入真实姓名"
+            :rules="[{ required: true, message: '请填写姓名' }]"
+          />
+          <van-field
+            v-model="form.phone"
+            name="phone"
+            label="手机号"
+            type="tel"
+            maxlength="11"
+            placeholder="用于接收审核结果"
+            :rules="[
+              { required: true, message: '请填写手机号' },
+              { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确' }
+            ]"
+          />
+          <van-field
+            :model-value="collegeText"
+            label="学院"
+            readonly
+            is-link
+            placeholder="请选择学院"
+            @click="openPicker('college')"
+          />
+          <van-field
+            :model-value="majorText"
+            label="专业"
+            readonly
+            is-link
+            placeholder="请选择专业"
+            @click="openPicker('major')"
+          />
+          <van-field
+            v-if="isOtherMajor"
+            v-model="form.majorText"
+            label="专业名称"
+            maxlength="64"
+            placeholder="请填写你的具体专业"
+            :rules="[{ required: true, message: '请填写具体专业名称' }]"
+          />
+          <van-field name="gender" label="性别">
+            <template #input>
+              <van-radio-group v-model="form.gender" direction="horizontal">
+                <van-radio :name="1">男</van-radio>
+                <van-radio :name="2">女</van-radio>
+                <van-radio :name="0">不填</van-radio>
+              </van-radio-group>
+            </template>
+          </van-field>
+          <van-field
+            :model-value="form.province ? `${form.province} ${form.city}` : ''"
+            label="生源地"
+            readonly
+            is-link
+            placeholder="选填，点击选择"
+            @click="areaShow = true"
+          />
+        </van-cell-group>
+
+        <van-cell-group inset title="意向部门（至少选 1 个）">
+          <div class="apply__chips">
+            <div
+              v-for="item in departments"
+              :key="item.code"
+              class="apply__chip"
+              :class="{ 'is-active': form.intentDepartments.includes(item.code) }"
+              @click="toggleDepartment(item.code)"
+            >
+              {{ item.label }}
+            </div>
+          </div>
+        </van-cell-group>
+
+        <van-cell-group inset :title="`兴趣标签（选填，最多 ${MAX_TAGS} 个）`">
+          <div v-for="group in tagGroups" :key="group.name" class="apply__group">
+            <p class="apply__group-name">{{ group.name }}</p>
+            <div class="apply__chips">
+              <div
+                v-for="item in group.items"
+                :key="item.code"
+                class="apply__chip"
+                :class="{ 'is-active': form.tags.includes(item.code) }"
+                @click="toggleTag(item.code)"
+              >
+                {{ item.label }}
+              </div>
+            </div>
+          </div>
+          <van-field
+            v-if="isOtherTag"
+            v-model="form.tagText"
+            label="补充标签"
+            maxlength="64"
+            placeholder="想写上自己的兴趣方向"
+          />
+        </van-cell-group>
+
+        <van-cell-group inset title="验证与提交">
+          <van-field
+            v-model="form.captchaCode"
+            name="captchaCode"
+            label="验证码"
+            type="digit"
+            maxlength="6"
+            placeholder="计算结果"
+            :rules="[{ required: true, message: '请填写验证码' }]"
+          >
+            <template #button>
+              <div class="apply__captcha-box" title="看不清？点击刷新" @click="refreshCaptcha">
+                <img
+                  v-if="captchaImage"
+                  class="apply__captcha"
+                  :src="captchaImage"
+                  alt="图形验证码"
+                />
+                <span v-else class="apply__captcha-loading">加载中…</span>
+              </div>
+            </template>
+          </van-field>
+          <div class="apply__privacy">
+            <van-checkbox v-model="privacyAgreed" shape="square">
+              我同意将以上信息用于开源鸿蒙社纳新审核与后续社团联络，不作其他用途
+            </van-checkbox>
+          </div>
+        </van-cell-group>
+
+        <div class="apply__submit">
+          <van-button round block type="primary" native-type="submit" :loading="saving">
+            提交报名
+          </van-button>
+        </div>
+      </van-form>
+    </template>
+
+    <van-popup v-model:show="pickerShow" position="bottom" round>
+      <van-picker
+        v-model="pickerValue"
+        :title="pickerTitle"
+        :columns="pickerColumns"
+        @confirm="onPickerConfirm"
+        @cancel="pickerShow = false"
+      />
+    </van-popup>
+
+    <van-popup v-model:show="areaShow" position="bottom" round>
+      <van-area
+        :area-list="areaList"
+        title="选择生源地"
+        :columns-num="2"
+        @confirm="onAreaConfirm"
+        @cancel="areaShow = false"
+      />
+    </van-popup>
   </div>
 </template>
+
+<style scoped>
+.apply {
+  padding: 12px 0 24px;
+}
+
+.apply__intro {
+  margin: 0 12px 16px;
+  padding: 14px;
+  border-radius: var(--brand-radius);
+  background: #fff;
+}
+
+.apply__intro-p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #4b5563;
+  text-align: justify;
+}
+
+.apply__intro-p:last-child {
+  margin-bottom: 0;
+}
+
+.apply__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.apply__chip {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #606266;
+  background: #fff;
+}
+
+.apply__chip.is-active {
+  border-color: var(--brand-primary);
+  background: color-mix(in srgb, var(--brand-primary) 12%, #fff);
+  color: var(--brand-primary);
+}
+
+.apply__group {
+  border-top: 1px solid #f2f3f5;
+}
+
+.apply__group:first-of-type {
+  border-top: none;
+}
+
+.apply__group-name {
+  margin: 10px 16px -4px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.apply__captcha-box {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 96px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.apply__captcha {
+  height: 34px;
+  max-width: 96px;
+  border-radius: 4px;
+}
+
+.apply__captcha-loading {
+  font-size: 12px;
+  color: #909399;
+}
+
+.apply__privacy {
+  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #909399;
+}
+
+.apply__submit {
+  margin: 20px 16px 0;
+}
+
+.apply__success {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.apply__success-icon {
+  font-size: 56px;
+  color: #67c23a;
+}
+
+.apply__success-title {
+  margin: 12px 0 8px;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.apply__success-text {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #606266;
+}
+
+.apply__success-tip {
+  margin: 0 0 20px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.apply__success-actions {
+  padding: 0 12px;
+}
+</style>

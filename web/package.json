@@ -16,6 +16,7 @@
     "format": "prettier --write \"src/**/*.{js,vue,scss}\""
   },
   "dependencies": {
+    "@vant/area-data": "^2.2.0",
     "axios": "^1.20.0",
     "element-plus": "^2.14.6",
     "pinia": "^4.0.3",
