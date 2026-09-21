@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS `recruit_apply` (
     `major_text`         VARCHAR(64)     DEFAULT NULL            COMMENT '专业选「其他」时的手填值',
     `intent_departments` JSON            NOT NULL                COMMENT '意向部门（多选，code 数组，如 [1,3]）',
     `tags`               JSON            DEFAULT NULL            COMMENT '兴趣标签（多选，code 数组）',
+    `tag_text`           VARCHAR(64)     DEFAULT NULL            COMMENT '兴趣标签选「其他」时的手填值',
     `gender`             TINYINT         NOT NULL DEFAULT 0      COMMENT '性别 0未填 1男 2女',
     `province`           VARCHAR(32)     DEFAULT NULL            COMMENT '生源地-省',
     `city`               VARCHAR(32)     DEFAULT NULL            COMMENT '生源地-市',
