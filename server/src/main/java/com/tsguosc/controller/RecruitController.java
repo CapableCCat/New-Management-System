@@ -3,6 +3,8 @@ package com.tsguosc.controller;
 import com.tsguosc.common.result.Result;
 import com.tsguosc.dto.RecruitApplyRequest;
 import com.tsguosc.dto.RecruitInfoVO;
+import com.tsguosc.dto.RecruitStatusRequest;
+import com.tsguosc.dto.RecruitStatusVO;
 import com.tsguosc.dto.RecruitSubmitVO;
 import com.tsguosc.service.RecruitService;
 import com.tsguosc.service.SysConfigService;
@@ -38,5 +40,20 @@ public class RecruitController {
     public Result<RecruitSubmitVO> apply(@Valid @RequestBody RecruitApplyRequest request) {
         RecruitSubmitVO result = recruitService.submit(request);
         return Result.ok(result, result.resubmitted() ? "已重新提交，请留意审核结果" : "报名提交成功");
+    }
+
+    /**
+     * 查询审核状态（F-005，公开；需图形验证码，一次性作废）。
+     *
+     * <p>只返回状态与拒绝原因；无记录时 {@code data} 为 {@code null}，用 message 给出友好文案
+     * （走 200 而非错误码，前端可安静地渲染成提示卡片，不弹红色报错）。
+     */
+    @PostMapping("/status")
+    public Result<RecruitStatusVO> status(@Valid @RequestBody RecruitStatusRequest request) {
+        RecruitStatusVO result = recruitService.queryStatus(request);
+        if (result == null) {
+            return Result.ok(null, "未找到该手机号的报名记录，请确认手机号是否正确");
+        }
+        return Result.ok(result);
     }
 }

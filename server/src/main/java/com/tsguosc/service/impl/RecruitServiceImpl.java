@@ -5,6 +5,8 @@ import com.tsguosc.common.constant.DictType;
 import com.tsguosc.common.exception.BusinessException;
 import com.tsguosc.common.result.ResultCode;
 import com.tsguosc.dto.RecruitApplyRequest;
+import com.tsguosc.dto.RecruitStatusRequest;
+import com.tsguosc.dto.RecruitStatusVO;
 import com.tsguosc.dto.RecruitSubmitVO;
 import com.tsguosc.entity.RecruitApply;
 import com.tsguosc.entity.SysDict;
@@ -143,6 +145,22 @@ public class RecruitServiceImpl implements RecruitService {
 
         log.info("被拒后重新提交：phone={}, applyId={}", phone, existing.getId());
         return new RecruitSubmitVO(phone, now, true);
+    }
+
+    @Override
+    public RecruitStatusVO queryStatus(RecruitStatusRequest request) {
+        // 1. 图形验证码（一次性，无论对错都作废）—— 防脚本批量探测手机号
+        captchaValidator.validateAndConsume(request.captchaKey(), request.captchaCode());
+
+        // 2. 查报名记录：逻辑删除的记录由 @TableLogic 自动过滤，等同于「未找到」
+        RecruitApply apply = recruitApplyMapper.selectOne(
+                Wrappers.<RecruitApply>lambdaQuery().eq(RecruitApply::getPhone, request.phone().trim()));
+        if (apply == null) {
+            return null;
+        }
+
+        // 3. 只返回状态与拒绝原因，不泄露其它字段（PRD F-005 安全要求）
+        return new RecruitStatusVO(apply.getStatus(), apply.getRejectReason());
     }
 
     // ------------------------------------------------------------
