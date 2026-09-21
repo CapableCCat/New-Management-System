@@ -7,6 +7,7 @@ import com.tsguosc.dto.RecruitApproveRequest;
 import com.tsguosc.dto.RecruitPasswordVO;
 import com.tsguosc.dto.RecruitQuery;
 import com.tsguosc.dto.RecruitRejectRequest;
+import com.tsguosc.dto.RecruitSmsConfigVO;
 import com.tsguosc.dto.RecruitStatsVO;
 
 /**
@@ -29,4 +30,7 @@ public interface RecruitAdminService {
 
     /** 拒绝：原因必填，记录审核人与审核时间 */
     void reject(RecruitRejectRequest request);
+
+    /** 短信通知提效工具所需配置（F-004，审核台角色只读） */
+    RecruitSmsConfigVO smsConfig();
 }

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.tsguosc.common.constant.ConfigKeys;
 import com.tsguosc.common.constant.DictType;
 import com.tsguosc.common.exception.BusinessException;
 import com.tsguosc.common.result.ResultCode;
@@ -15,6 +16,7 @@ import com.tsguosc.dto.RecruitApproveRequest;
 import com.tsguosc.dto.RecruitPasswordVO;
 import com.tsguosc.dto.RecruitQuery;
 import com.tsguosc.dto.RecruitRejectRequest;
+import com.tsguosc.dto.RecruitSmsConfigVO;
 import com.tsguosc.dto.RecruitStatsVO;
 import com.tsguosc.entity.RecruitApply;
 import com.tsguosc.entity.SysDict;
@@ -23,6 +25,7 @@ import com.tsguosc.mapper.RecruitApplyMapper;
 import com.tsguosc.mapper.SysDictMapper;
 import com.tsguosc.mapper.UserMapper;
 import com.tsguosc.service.RecruitAdminService;
+import com.tsguosc.service.SysConfigService;
 import com.tsguosc.util.PasswordGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +67,7 @@ public class RecruitAdminServiceImpl implements RecruitAdminService {
     private final UserMapper userMapper;
     private final SysDictMapper sysDictMapper;
     private final PasswordEncoder passwordEncoder;
+    private final SysConfigService sysConfigService;
 
     /** 当前用户的评审范围 */
     private record ReviewScope(boolean all, String department) {
@@ -143,6 +147,15 @@ public class RecruitAdminServiceImpl implements RecruitAdminService {
         recruitApplyMapper.updateById(update);
 
         log.info("拒绝报名：id={}, phone={}", apply.getId(), apply.getPhone());
+    }
+
+    @Override
+    public RecruitSmsConfigVO smsConfig() {
+        // 只读返回短信工具需要的三个键；模板的修改仍只走超管的「纳新设置」页
+        return new RecruitSmsConfigVO(
+                sysConfigService.getOrDefault(ConfigKeys.SYSTEM_URL, ""),
+                sysConfigService.getOrDefault(ConfigKeys.SMS_TEMPLATE_PASS, ""),
+                sysConfigService.getOrDefault(ConfigKeys.SMS_TEMPLATE_REJECT, ""));
     }
 
     // ------------------------------------------------------------

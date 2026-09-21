@@ -11,6 +11,7 @@ import com.tsguosc.dto.RecruitApproveRequest;
 import com.tsguosc.dto.RecruitPasswordVO;
 import com.tsguosc.dto.RecruitQuery;
 import com.tsguosc.dto.RecruitRejectRequest;
+import com.tsguosc.dto.RecruitSmsConfigVO;
 import com.tsguosc.dto.RecruitStatsVO;
 import com.tsguosc.service.RecruitAdminService;
 import jakarta.validation.Valid;
@@ -70,5 +71,15 @@ public class RecruitAdminController {
     public Result<Void> reject(@Valid @RequestBody RecruitRejectRequest request) {
         recruitAdminService.reject(request);
         return Result.ok(null, "已拒绝该报名");
+    }
+
+    /**
+     * 短信通知提效工具所需配置（F-004）：系统链接 + 两个短信模板。
+     *
+     * <p>只读；供审核台干部（超管 / 社长团 / 部长）拼装通知话术用。
+     */
+    @GetMapping("/sms-config")
+    public Result<RecruitSmsConfigVO> smsConfig() {
+        return Result.ok(recruitAdminService.smsConfig());
     }
 }
