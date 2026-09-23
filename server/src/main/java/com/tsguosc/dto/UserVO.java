@@ -28,6 +28,17 @@ public record UserVO(
         LocalDateTime createdAt
 ) {
 
+    /**
+     * 屏蔽敏感列（手机号 / 学号）—— 供「成员」角色查看他人时使用。
+     *
+     * <p>见 PRD 第五章「敏感列可见性」：手机号与学号仅部长 / 社长团 / 超管可见；
+     * 成员之间只可见基础列（姓名 / 部门 / 职位 / 学院 / 专业 / 个人简介 / 头像）。
+     */
+    public UserVO masked() {
+        return new UserVO(id, null, name, null, college, major, majorText, department, duty, role,
+                status, gender, province, city, avatarUrl, bio, activatedAt, createdAt);
+    }
+
     public static UserVO from(User user) {
         if (user == null) {
             return null;
