@@ -88,13 +88,12 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- T11 启用：MinIO 头像存储（A4：T1 仅留注释占位）
+        <!-- MinIO 头像对象存储（T11 启用，T1 时仅留注释占位） -->
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
             <version>8.5.12</version>
         </dependency>
-        -->
 
         <!-- 密码加密：只用 BCrypt 编码器，不引入 spring-security 的鉴权链 -->
         <dependency>

@@ -1,6 +1,7 @@
 package com.tsguosc.dto;
 
 import com.tsguosc.entity.User;
+import com.tsguosc.util.AvatarUrls;
 
 import java.time.LocalDateTime;
 
@@ -58,7 +59,8 @@ public record UserVO(
                 user.getGender(),
                 user.getProvince(),
                 user.getCity(),
-                user.getAvatarUrl(),
+                // 库里存的是对象 key，对外统一拼成可访问地址（见 AvatarUrls / D75）
+                AvatarUrls.resolve(user.getAvatarUrl()),
                 user.getBio(),
                 user.getActivatedAt(),
                 user.getCreatedAt()

@@ -17,6 +17,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -75,6 +76,17 @@ public class GlobalExceptionHandler {
     public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         log.warn("请求方式不支持：{}", e.getMessage());
         return Result.fail(ResultCode.PARAM_ERROR, "请求方式不被支持：" + e.getMethod());
+    }
+
+    /**
+     * 上传文件超过 spring.servlet.multipart 限制。
+     *
+     * <p>不拦的话会冒成 500 系统异常，用户看到的是"系统繁忙"，无法判断是自己图片太大。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result<Void> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        log.warn("上传文件超限：{}", e.getMessage());
+        return Result.fail(ResultCode.PARAM_ERROR, "头像大小不能超过 2MB");
     }
 
     /** 访问了不存在的接口/资源 */
