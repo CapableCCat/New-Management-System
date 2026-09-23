@@ -50,7 +50,8 @@
 1. 本文件 —— 全貌、当前阶段、环境坑、铁律
 2. `.workbuddy/memory/MEMORY.md` —— 项目长期记忆（技术选型、环境怪癖、各任务点红线）
 3. `.workbuddy/memory/YYYY-MM-DD.md` —— 最近工作日志（按日期倒序读最近 1~2 份，信息量最大）
-4. `docs/OSC 社团管理系统 · 开发任务点清单.md` —— **工作台账**：§3 总表看进度、§4 任务点详情（方案/实现/验证）、§6 决策 D1~D80
+4. `docs/OSC 社团管理系统 · 开发任务点清单.md` —— **工作台账**：§2 技术栈、§3 总表看进度、§4 任务点详情（方案/实现/验证）、§6 决策 D1~D80
+   （**注意编号**：为贯彻「单一出处」，原来的 §0 开发规则 / §1 项目速览已删（内容在本文件），§5 只是指向本文件的指针表 —— 看到编号从头部直接跳到 §2 是正常的）
 5. `docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md` —— **权威需求依据**（按功能卡片 F-001~F-014 按需查）
 6. `docs/OSC 社团管理系统 · 战略定位与价值延伸说明.md` —— 定位与价值规划（答辩/软著/汇报用）
 
@@ -122,6 +123,17 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 - ⚠️ **启动命令必须在 `server/` 目录下执行**，否则读不到 `.env`（`spring.config.import` 用相对路径）。
 - ⚠️ **配置值不要经 mysql 批处理往返**：mysql 批处理会把真实换行输出成字面量 `\n`（T6 踩过，简介里出现反斜杠-n）。
   读中文多行值走接口或加 `--raw`。
+- ⚠️ **`git commit` 与 `git push` 必须分成两条独立命令**（T10、T11 各踩一次）：命令可能被沙箱升级重试跑两遍，
+  第二次 `git commit` 报 "nothing to commit" 返回 1 → **把 `&&` 链后面的 `git push` 短路掉**，看着像提交成功其实没推。
+  收尾一律 `git log --oneline origin/main..HEAD` 核对（空 = 已推）。同理：**多步提交前先看 `git diff --cached --name-only`**，
+  因为 `git add` 过的文件会被下一次 `git add <别的路径>` 一起带进提交（T11 的 PRD 就这样误入 server commit，用
+  `git reset --soft HEAD~1` + `git restore --staged <path>` 修正）。
+- ⚠️ **PowerShell 工具偶发沙箱内部错误**（`sandbox-center cmd decisionRecord missing actual resource subject`）时，
+  **换 Bash 工具照样干活**：git 命令、绝对路径的托管 Python（`C:/Users/001/.workbuddy/binaries/python/versions/3.13.12/python.exe`）
+  都能直接调用。给文件改名可用 `git add <带空格的旧名>` + `git mv <旧名> <新名>` 组合完成。
+- ⚠️ **Element Plus 2.14 的细节**：下拉禁用态不在根 `.el-select` 上（查内层 `input[disabled]`）；
+  `el-dialog` 是 fixed 定位，**溢出量不出来**（要量 `getBoundingClientRect()`，T9/T10 踩过）。
+  更完整的踩坑清单在 `.workbuddy/memory/MEMORY.md`。
 
 ### 绝对不要做的事
 
@@ -188,6 +200,8 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 短信提效工具           | 模板读 `GET /recruit/admin/sms-config`；改仍只走超管「纳新设置」页 |
 | 成员档案权限           | 行范围=部长本部门；列范围=成员仅基础列（后端 `masked()` 置空手机号/学号） |
 | 头像存储               | MinIO；库里只存对象 key（`avatars/{userId}/…`），读时拼公开地址 |
+| 个人中心自助边界       | 姓名 / 手机号**不在** `/user/profile` 请求体里；学号仅空可补录（T11） |
+| 文档架构               | 长期文档四份 + **单一出处**：同一事实只写一处、别处只放指针（见「五、全局铁律」第 3 条） |
 | 富文本 XSS             | **T12 统一做**（T11 决策 D76）                               |
 
 ---
