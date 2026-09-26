@@ -11,11 +11,10 @@ import com.tsguosc.dto.ImportAccountVO;
 import com.tsguosc.dto.ImportErrorVO;
 import com.tsguosc.dto.ImportResultVO;
 import com.tsguosc.dto.ImportRow;
-import com.tsguosc.entity.SysDict;
 import com.tsguosc.entity.User;
-import com.tsguosc.mapper.SysDictMapper;
 import com.tsguosc.mapper.UserMapper;
 import com.tsguosc.service.MemberImportService;
+import com.tsguosc.util.DictIndex;
 import com.tsguosc.util.PasswordGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,7 +83,7 @@ public class MemberImportServiceImpl implements MemberImportService {
     private static final Pattern PHONE_PATTERN = Pattern.compile("^1[3-9]\\d{9}$");
 
     private final UserMapper userMapper;
-    private final SysDictMapper sysDictMapper;
+    private final DictIndex dictIndex;
     private final PasswordEncoder passwordEncoder;
 
     // ------------------------------------------------------------
@@ -144,7 +143,7 @@ public class MemberImportServiceImpl implements MemberImportService {
             throw err("单次最多导入 " + MAX_ROWS + " 行，请拆分文件后分批导入");
         }
 
-        Map<String, Map<String, String>> dictIndex = loadDictIndex();
+        Map<String, Map<String, String>> dict = dictIndex.labelToCode();
         Set<String> phoneTaken = existingValues(User::getPhone);
         Set<String> studentIdTaken = existingValues(User::getStudentId);
         Set<String> phoneInFile = new HashSet<>();
@@ -160,7 +159,7 @@ public class MemberImportServiceImpl implements MemberImportService {
             }
             int excelRow = i + HEADER_ROW_NUMBER + 1;
             try {
-                PendingAccount pending = buildAccount(cells, dictIndex, phoneTaken, studentIdTaken, phoneInFile, studentIdInFile);
+                PendingAccount pending = buildAccount(cells, dict, phoneTaken, studentIdTaken, phoneInFile, studentIdInFile);
                 userMapper.insert(pending.user());
                 phoneTaken.add(pending.user().getPhone());
                 if (pending.user().getStudentId() != null) {
@@ -382,21 +381,7 @@ public class MemberImportServiceImpl implements MemberImportService {
     // 字典与库内唯一性
     // ------------------------------------------------------------
 
-    /** 字典索引：type → (label → code)，只含启用项；导入前查一次 */
-    private Map<String, Map<String, String>> loadDictIndex() {
-        List<SysDict> list = sysDictMapper.selectList(
-                Wrappers.<SysDict>lambdaQuery().eq(SysDict::getEnabled, 1));
-        Map<String, Map<String, String>> index = new HashMap<>();
-        for (SysDict dict : list) {
-            if (dict.getLabel() == null || dict.getCode() == null) {
-                continue;
-            }
-            index.computeIfAbsent(dict.getType(), key -> new HashMap<>())
-                    .put(dict.getLabel().trim(), dict.getCode().trim());
-        }
-        return index;
-    }
-
+    /** 字典索引：type → (label → code)，仅启用项；导入前查一次（实现见 {@link DictIndex}） */
     private String dictCode(Map<String, Map<String, String>> index, DictType type, String label) {
         if (label == null) {
             return null;

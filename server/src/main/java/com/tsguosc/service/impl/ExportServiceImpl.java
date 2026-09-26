@@ -7,12 +7,11 @@ import com.tsguosc.dto.MemberExportRow;
 import com.tsguosc.dto.MemberQuery;
 import com.tsguosc.dto.RecruitExportRow;
 import com.tsguosc.entity.RecruitApply;
-import com.tsguosc.entity.SysDict;
 import com.tsguosc.entity.User;
 import com.tsguosc.mapper.RecruitApplyMapper;
-import com.tsguosc.mapper.SysDictMapper;
 import com.tsguosc.mapper.UserMapper;
 import com.tsguosc.service.ExportService;
+import com.tsguosc.util.DictIndex;
 import com.tsguosc.util.ExcelExporter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +21,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,7 +53,7 @@ public class ExportServiceImpl implements ExportService {
 
     private final UserMapper userMapper;
     private final RecruitApplyMapper recruitApplyMapper;
-    private final SysDictMapper sysDictMapper;
+    private final DictIndex dictIndex;
 
     // ------------------------------------------------------------
     // 成员名册
@@ -63,7 +61,7 @@ public class ExportServiceImpl implements ExportService {
 
     @Override
     public byte[] exportMemberRoster(MemberQuery query) {
-        Map<String, Map<String, String>> dict = loadDictLabels();
+        Map<String, Map<String, String>> dict = dictIndex.codeToLabel();
         List<User> users = userMapper.selectList(memberWrapper(query));
         List<MemberExportRow> rows = users.stream().map(user -> toMemberRow(user, dict)).toList();
         log.info("导出成员名册：{} 行（keyword={}, college={}, department={}, duty={}, status={}）",
@@ -119,7 +117,7 @@ public class ExportServiceImpl implements ExportService {
 
     @Override
     public byte[] exportRecruitApplies() {
-        Map<String, Map<String, String>> dict = loadDictLabels();
+        Map<String, Map<String, String>> dict = dictIndex.codeToLabel();
         // PRD：recruit_apply 全量（不分状态）；按提交时间升序便于复盘
         List<RecruitApply> applies = recruitApplyMapper.selectList(Wrappers.<RecruitApply>lambdaQuery()
                 .orderByAsc(RecruitApply::getCreatedAt)
@@ -169,20 +167,6 @@ public class ExportServiceImpl implements ExportService {
     // ------------------------------------------------------------
     // 文本转换
     // ------------------------------------------------------------
-
-    /** 字典索引：type → (code → label)，**含停用项**（历史数据也要能显示名称） */
-    private Map<String, Map<String, String>> loadDictLabels() {
-        List<SysDict> list = sysDictMapper.selectList(Wrappers.<SysDict>lambdaQuery());
-        Map<String, Map<String, String>> index = new HashMap<>();
-        for (SysDict dict : list) {
-            if (dict.getLabel() == null || dict.getCode() == null) {
-                continue;
-            }
-            index.computeIfAbsent(dict.getType(), key -> new HashMap<>())
-                    .put(dict.getCode().trim(), dict.getLabel().trim());
-        }
-        return index;
-    }
 
     /** code → 中文标签；查不到就退回原始 code（比留空更有信息量），null 用 fallback */
     private String label(Map<String, Map<String, String>> dict, DictType type, Object code, String fallback) {
