@@ -5,6 +5,7 @@ import { ElMessageBox } from 'element-plus'
 import { APP_NAME, ROUTE_PATH } from '@/constants/app'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { useUserStore } from '@/stores/user'
+import LocaleSwitch from '@/components/LocaleSwitch.vue'
 
 const isMobile = useIsMobile()
 const route = useRoute()
@@ -19,9 +20,12 @@ const menuItems = computed(() => {
     { index: '/admin/audit', label: '审核管理台' },
     { index: '/admin/members', label: '成员档案' },
     { index: '/admin/announcement', label: '公告管理' },
-    { index: '/admin/dashboard', label: '看板' },
-    { index: '/admin/import', label: 'Excel 导入' }
+    { index: '/admin/dashboard', label: '看板' }
   ]
+  // Excel 导入按 PRD 权限矩阵只给社长团 / 超管（部长没有），故与字典、纳新设置一样按资格显示
+  if (userStore.canManageAllUsers) {
+    items.push({ index: '/admin/import', label: 'Excel 导入' })
+  }
   if (userStore.isSuperAdminUser) {
     items.push({ index: '/admin/dict', label: '字典管理' })
     items.push({ index: '/admin/settings', label: '纳新设置' })
@@ -63,6 +67,7 @@ async function handleLogout() {
         <span class="admin-title">{{ currentTitle }}</span>
         <div class="admin-actions">
           <span class="admin-user">{{ userStore.profile?.name || '未登录' }}</span>
+          <LocaleSwitch />
           <el-button text size="small" @click="handleLogout">退出</el-button>
         </div>
       </header>

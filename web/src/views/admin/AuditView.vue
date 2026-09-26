@@ -13,6 +13,7 @@ import { useDictStore } from '@/stores/dict'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { copyText } from '@/utils/sms'
+import { downloadCsv as downloadCsvFile, today } from '@/utils/csv'
 import SmsNotifyDialog from '@/components/SmsNotifyDialog.vue'
 
 /**
@@ -348,19 +349,7 @@ function downloadCsv() {
   ;(result.value?.credentials || []).forEach((item) => {
     rows.push([item.name, item.phone, item.password])
   })
-  const csv =
-    '\uFEFF' +
-    rows
-      .map((cells) => cells.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\r\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  const today = new Date().toISOString().slice(0, 10)
-  link.href = url
-  link.download = `初始密码清单_${today}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadCsvFile(`初始密码清单_${today()}.csv`, rows)
 }
 
 onMounted(async () => {

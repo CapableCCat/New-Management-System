@@ -15,3 +15,14 @@ export const getMemberDetail = (id) => request.get(`/member/${id}`)
 
 /** 编辑成员档案（超管 / 社长团 / 部长） */
 export const updateMember = (data) => request.put('/member/admin/update', data)
+
+/** 下载 Excel 导入模板（超管 / 社长团）；返回二进制 Blob，用 utils/download 保存 */
+export const downloadImportTemplate = () =>
+  request.get('/member/admin/import-template', { responseType: 'blob' })
+
+/** 批量导入成员（超管 / 社长团）：逐行校验 + 建号，返回成功清单（含初始密码）与错误行清单 */
+export const importMembers = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post('/member/admin/import', form)
+}

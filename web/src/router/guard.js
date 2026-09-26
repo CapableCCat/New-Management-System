@@ -10,7 +10,7 @@ import { useUserStore } from '@/stores/user'
  *   2. 系统初始化：未初始化 → 强制去引导页；已初始化 → 引导页不可再进
  *   3. 登录态：公开页放行，其余未登录跳登录页（带 redirect）
  *   4. 首登强制改密：未改密只能待在改密页（后端拦截器同样会兜底）
- *   5. 角色骨架：管理端资格 / 超管专属页
+ *   5. 角色骨架：管理端资格 / 社长团资格（leaderGroup）/ 超管专属页
  *
  * 真正的权限判定在后端；前端只负责"别让用户点进去白跑一趟"。
  */
@@ -57,6 +57,10 @@ export function setupRouterGuard(router) {
     // 5. 角色骨架
     if (to.meta.admin && !userStore.canEnterAdminPage) {
       ElMessage.warning('没有管理端访问权限')
+      return { path: ROUTE_PATH.HOME }
+    }
+    if (to.meta.leaderGroup && !userStore.canManageAllUsers) {
+      ElMessage.warning('仅社长团与超管可访问')
       return { path: ROUTE_PATH.HOME }
     }
     if (to.meta.superAdmin && !userStore.isSuperAdminUser) {

@@ -134,7 +134,8 @@ const routes = [
         path: 'import',
         name: 'adminImport',
         component: () => import('@/views/admin/ImportView.vue'),
-        meta: { title: 'Excel 导入', admin: true, task: 'T13' }
+        // leaderGroup：PRD 权限矩阵里「Excel 导入」只给社长团 / 超管，部长没有
+        meta: { title: 'Excel 导入', admin: true, leaderGroup: true, task: 'T13' }
       }
     ]
   },
