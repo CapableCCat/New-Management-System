@@ -17,7 +17,10 @@
   },
   "dependencies": {
     "@vant/area-data": "^2.2.0",
+    "@wangeditor-next/editor": "^6.4.2",
+    "@wangeditor-next/editor-for-vue": "^6.4.2",
     "axios": "^1.20.0",
+    "dompurify": "^3.4.15",
     "element-plus": "^2.14.6",
     "pinia": "^4.0.3",
     "vant": "^4.10.2",
