@@ -48,7 +48,7 @@
 | T9 | 短信通知提效工具 | F-004 / 切片4 | T7 | ✅ 已完成 |
 | T10 | 成员档案管理 | F-006 / 切片6 | T4、T5 | ✅ 已完成 |
 | T11 | 个人中心 | F-007 / 切片7 | T4 | ✅ 已完成 |
-| T12 | 公告系统 | F-008 / 切片8 | T4 | ⏳ |
+| T12 | 公告系统 | F-008 / 切片8 | T4 | ✅ 已完成 |
 | T13 | Excel 批量导入 | F-009 / 切片9 | T4、T5 | ⏳ |
 | T14 | 数据导出 | F-013 / 切片13 | T10、T7 | ⏳ |
 | T15 | 基础看板 | F-010 / 切片10 | T4、T5 | ⏳ |
@@ -1202,10 +1202,112 @@ web/src/
 > ⚠️ 本轮验证跑在**独立端口**（后端 8090 + 预览服务 5180），全程没有打扰你 IDEA 里跑的 8080 与 5173。
 > 本机 MinIO：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`，默认凭据 `minioadmin/minioadmin`，桶 `osc` 由应用启动时自动创建。
 
-### T12 公告系统
+### T12 公告系统 ✅
+
 - **覆盖**：F-008、切片 8
 - **交付物**：公告发布/编辑/删除（管理端），列表/详情（成员端）；置顶排序；富文本 XSS 清洗（前后端）。
 - **自测要点**：置顶排最前；普通成员只读；尝试注入脚本被过滤。
+
+#### T12 技术方案（已确认 2026-09-23）
+
+**① 表结构零变更**：`announcement` 表 T2 就按 PRD 建好了（`title`/`content`/`is_top`/`created_at`/`updated_at`/`created_by`/`updated_by`/`is_deleted` + `idx_ann_top_created`），T12 只启用不改造，**无 DDL**。
+
+**② 接口**
+
+| 方法 | 路径 | 权限 |
+|---|---|---|
+| GET | `/announcement/list?page=&size=&keyword=` | 登录即可（成员端 + 管理端共用，管理端多标题检索） |
+| GET | `/announcement/{id}` | 登录即可（正文为已清洗的富文本 HTML） |
+| POST | `/announcement/admin/create` | 超管 / 社长团 / 部长 |
+| PUT | `/announcement/admin/{id}` | 同上（整体提交：标题 / 正文 / 是否置顶） |
+| DELETE | `/announcement/admin/{id}` | 同上（逻辑删除） |
+| POST | `/announcement/admin/image` | 同上（公告配图，jpg/png ≤2MB） |
+
+排序恒为 `is_top DESC, created_at DESC, id DESC`（加 `id` 兜底：同一秒发布的两条也要有稳定顺序，否则分页会重复/漏项）。
+`/announcement/admin/**` 是三段路径，**白名单无需改动**（`/dict/*` 那种两段通配不会误放行）。
+
+**③ 富文本 XSS：jsoup 白名单 + 三处属性级加固**（本任务的主要技术含量）
+
+- 选 **白名单**而不是黑名单：黑名单永远在追新绕过姿势；白名单只问"这个标签/属性/协议是不是我认识的"。
+- 白名单只能管"有哪些属性"，管不了"属性值长什么样"，所以再加三处加固：
+  1. `style` 逐条声明过滤（只留 `text-align` / `text-indent` / `color` / `background-color`，值必须匹配正则）—— 挡 `url(javascript:)`、`expression()`、`\}` 转义绕过
+  2. `img.src` 只认本站对象存储前缀 —— 否则富文本就是任意外链 / 内网地址探测的跳板
+  3. `a` 强制 `rel="noopener noreferrer"` + `target="_blank"`（防反向 tabnabbing）
+- **前后端双重**：写入前清（提交入库）+ 读取后清（渲染输出）。只清一端都不够：只清写入端挡不住直连数据库的脏数据；只清读取端则库里长期存着脏 HTML。
+- 前端 `utils/sanitizeHtml.js` 用 DOMPurify，标签/属性集合与后端**尽力对齐**；域名级校验只有后端能做（前端拿不到 MinIO 前缀），故**后端是权威**。
+
+**④ 富文本编辑器**：`@wangeditor-next/editor` 6.4.2（原版 wangEditor 已停维护，社区 fork 仍在更新）。刻意约束：
+- 工具栏**只留「上传图片」，不给「网络图片」** —— 站外图片会被后端剥掉，给入口只会让人白填
+- 不给视频/全屏菜单 —— 视频不在白名单里
+- 该系**不支持移动端编辑但支持查看**，正好对上"管理端 PC 编辑 / 成员端手机只读"
+
+**⑤ 公告配图**：复用 T11 的 MinIO 通道（`MinioSupport` 建桶+公开读、`ImageValidator` 三层校验都是抽出来共用的）。落库**只存对象 key**（与头像 D75 同口径），输出时拼公开前缀。
+
+**⑥ 前端页面**：管理端 `AnnouncementAdminView`（列表 + 发布/编辑弹窗 + 删除确认 + 窄屏卡片）、成员端 `AnnouncementView`（卡片列表 → 详情弹窗，支持 `?open=<id>` 直达）、`HomeView`（公告摘要卡，点击跳公告页并自动展开）；详情抽成 `AnnouncementDetailDialog` 三处共用。
+
+#### T12 实现结果（2026-09-23 完成）
+
+**代码落点**
+
+```text
+server/
+├─ pom.xml                                   ← + jsoup 1.21.2（HTML 白名单清洗）
+└─ src/main/java/com/tsguosc/
+   ├─ util/HtmlSanitizer.java                ← 新增（白名单 + style/图片/链接三处加固；cleanForStore/cleanForOutput）
+   ├─ util/ImageValidator.java               ← 新增（三层校验，从 AvatarStorage 抽出，公告配图共用）
+   ├─ util/MinioSupport.java                 ← 新增（建客户端 + 建桶 + 公开读策略，头像/配图共用）
+   ├─ util/AvatarStorage.java                ← 改为委托上面两个工具类（行为与文案不变）
+   ├─ util/AnnouncementImageStorage.java     ← 新增（公告配图上传，key = announcements/{yyyyMM}/{时间戳}.{ext}）
+   ├─ entity/Announcement.java               ← 新增
+   ├─ mapper/AnnouncementMapper.java         ← 新增
+   ├─ dto/AnnouncementQuery / SaveRequest / VO / DetailVO ← 新增
+   ├─ service/AnnouncementService(+Impl)     ← 新增（排序、清洗收口、作者名批量组装）
+   ├─ controller/AnnouncementController.java ← 新增（6 个接口）
+   ├─ common/exception/GlobalExceptionHandler ← 上传超限文案改为通用的「图片」（原写死"头像"）
+   └─ src/main/resources/application.yml     ← multipart 注释同步（覆盖头像 + 公告配图）
+web/src/
+├─ package.json                             ← + @wangeditor-next/editor、editor-for-vue、dompurify
+├─ api/announcement.js                      ← 新增
+├─ utils/sanitizeHtml.js                    ← 新增（DOMPurify + 与后端对齐的白名单 + style 过滤钩子）
+├─ components/RichTextEditor.vue            ← 新增（编辑器封装：图片自定义上传、v-model、销毁）
+├─ components/AnnouncementDetailDialog.vue  ← 新增（全站唯一允许 v-html 富文本的地方）
+├─ views/admin/AnnouncementAdminView.vue    ← 占位替换为真实实现
+├─ views/member/AnnouncementView.vue        ← 占位替换为真实实现
+└─ views/member/HomeView.vue                ← 占位替换为真实实现（公告摘要 + 管理端入口）
+```
+
+**实测验证记录**（后端 BUILD SUCCESS；接口 **55 项**全过 + 页面 **48 项**全过；`eslint .` 0 error、`vite build` 通过）
+
+| 验证项 | 结果 |
+|---|---|
+| 权限：未登录读/写 | `40100` ✅ |
+| 权限：普通成员发布 / 编辑 / 删除 / 上传配图 | 全部 `40300` ✅ |
+| 权限：部长发布普通公告与置顶公告 | 200 ✅ |
+| **XSS 清洗**：`<script>` / `<img onerror>` / `<iframe>` / `onclick` / `javascript:` 链接 / `<svg onload>` | 接口输出与**库里落的值**双双无危险片段 ✅ |
+| XSS：正常标签保留 | `<strong>` / `<h2>` / `<ul><li>` / `<blockquote>` / `<table>` 原样保留 ✅ |
+| XSS：`style` 只剩 `text-align`（`url(javascript:)` 被剥） | ✅ |
+| XSS：`javascript:` 链接的 `href` 被剥掉、文字保留 | ✅ |
+| XSS：`<svg onload=…>` 之后的正文不再陪葬（只拆壳） | ✅ |
+| 空内容：只含 `<script>` / `<p><br></p>` | `40000` ✅ |
+| **配图**：上传 PNG → 返回完整地址 → 浏览器匿名 GET 200 + `image/png`（公开读生效） | ✅ |
+| 配图：`.txt` 扩展名 / `.jpg` 名字但 PNG 内容（魔数拦下）/ >2MB | 全部 `40000` ✅ |
+| 配图：库里只存对象 key（`src="announcements/…"`），输出时拼回完整地址 | ✅ |
+| 配图：站外图片被摘除、正文保留 | ✅ |
+| 排序：1 置顶 + 2 普通 → 置顶恒排最前，其余按发布时间倒序 | ✅ |
+| 列表：不含正文、摘要无 HTML 标签、带发布人姓名 | ✅ |
+| 编辑：标题/正文更新、**取消置顶真落库**（`isTop` 1→0）、发布时间不变 | ✅ |
+| 删除：部长可删 → 重复删除 `40400` → 详情 `40400` → 列表不再出现 → 库里 `is_deleted=1`（逻辑删除可追溯） | ✅ |
+| 边界：空标题 / 标题 129 字 / 详情不存在 / 编辑不存在的 id / 标题检索 / 空关键字 | `40000`×3 + `40400` ✅ |
+| **页面（管理端 1440）**：发布 → 列表出现 → 编辑（正文回填编辑器）→ 置顶 → 排到第一行 → 删除（中文确认按钮）→ 消失 | ✅ |
+| **页面（成员端 375）**：只读（无任何发布/编辑/删除入口）、列表零横向溢出、详情弹窗不溢出 | ✅ |
+| **页面（前端兜底）**：库里直插 `<script>` + `onerror` 脏数据 → 渲染后 `window.__xss` 未定义、script/iframe/事件属性全部消失、正常文字保留 | ✅ |
+| 页面：富文本渲染（strong/h2/li/blockquote 齐全）、站外链接带 `target=_blank` + `rel` | ✅ |
+| 页面：配图公告里 `<img>` 真的从 MinIO 加载出来了 | ✅ |
+| 页面（首页）：公告摘要卡 → 点击跳 `/announcement?open=<id>` 并自动展开详情 | ✅ |
+| 回归：T10 成员列表（手机号仍被抹掉）/ T11 当前用户 / **T11 头像上传（AvatarStorage 重构后无回归）** / T5 字典公开读 / T8 状态查询 | 全部 200 ✅ |
+
+> ⚠️ 本轮验证跑在**独立端口**（后端 8090 + 预览服务 5180），全程没有打扰 8080 / 5173。
+> 本机 MinIO：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`。
 
 ### T13 Excel 批量导入
 - **覆盖**：F-009、切片 9
@@ -1343,6 +1445,13 @@ web/src/
 | D78 | MinIO 的降级与桶策略 | 凭据为空时应用照常启动、只有头像接口报友好错误（不让本地没起 MinIO 拖垮整个服务）；bucket 由应用启动时**自动创建**并设**公开读**策略（只放开 `s3:GetObject`，不允许列举）——头像是 `<img>` 直接加载的，带不了 token | T11 |
 | D79 | 头像上传三层校验 + 换头像删旧对象 | 扩展名 → 声明 Content-Type → **文件头魔数**（JPEG `FFD8FF` / PNG `89504E47…`）；Content-Type 客户端可控，不能只信它。上传成功后删除旧对象，避免桶里堆孤儿；另处理 `MaxUploadSizeExceededException` 让超限返回友好文案而非 500 | T11 |
 | D80 | 姓名/手机号「从根上」不可自助改 | 不是前端置灰那种软限制：这两个字段**根本不在** `/user/profile` 的请求体里，请求里塞了也会被忽略。真正能改它们的只有干部走成员档案（T10） | T11 |
+| D81 | 公告不沿用旧系统的「紧急公告」 | PRD F-008 只要求**置顶**，旧系统那个 `status`(0普通/1紧急) 不迁移；`announcement` 表 T2 已按 PRD 建好，T12 **零 DDL** | T12 |
+| D82 | 公告编辑/删除的权限边界 | PRD 权限矩阵只规定「发布公告」= 部长及以上，未细化"能不能改别人的"。实现取**部长及以上均可编辑/删除任意公告** —— 社团规模小、公告本身是公共信息，反之会出现「发公告的人毕业了没人能改」的死角 | T12 |
+| D83 | 危险容器必须「连内容一起删」 | jsoup 的 `Safelist.removeTags` **只删标签、保留文本**，于是 `<script>alert(1)</script>` 会留下满屏 "alert(1)" 文本。故白名单清洗**之前**先显式 `select(危险选择器).remove()`（实测发现）。例外：`svg`/`math` 是解析黑洞（会把它之后的内容吞成子节点），改成**只拆壳保留子节点**，否则正常正文会陪葬 | T12 |
+| D84 | 富文本编辑器选型 | `@wangeditor-next/editor` 6.4.2 —— 原版 wangEditor 已停维护，社区 fork 仍在更新；中文文档开箱即用。工具栏**只留「上传图片」不给「网络图片」**（站外图片会被后端剥掉），不给视频/全屏。该系不支持移动端**编辑**但支持查看，正合"管理端编辑 / 成员端只读" | T12 |
+| D85 | 公告配图落库存 key + 只认本站图片 | 与头像同口径（D75）：库里存 `announcements/{yyyyMM}/{时间戳}.{ext}`，输出时拼公开前缀，换域名不失效。图片白名单只认本站前缀（防外链/内网探测）。**代价**：清洗器必须在走协议白名单**之前**先把 key 展开成完整地址 —— jsoup 的协议白名单只有 http/https，相对地址会被判成"非法协议"而整张删掉（实测踩到） | T12 |
+| D86 | 公告图片不做孤儿清理 | 删除公告**不**删配图对象：同一张图可能被多条公告引用，V1.0 不做引用计数。桶里可能留下少量无引用对象，可接受 | T12 |
+| D87 | Element Plus 内置文案是英文 | 全站未配 `zh-cn` locale（`main.js`/`App.vue` 没有 `ElConfigProvider`），`ElMessageBox` 默认按钮显示 **OK / Cancel**、分页/空态等也都是英文 —— 影响 T4~T11 的所有确认框。T12 只在自己页面的删除确认框**显式指定中文按钮文案**（局部兜底）；全站 locale 统一建议另开任务点（改 `App.vue` 一处即可） | T12 / 后续 |
 
 ---
 
@@ -1357,3 +1466,6 @@ web/src/
 > - 2026-09-20 ⑮ **修订 T4 的首登改密口径**（社长验收反馈）：引导页建超管是本人设密码，不再强制改密；只有系统随机初始密码的账号才强制。同步改 T4 条目接口表/安全链路/自测要点/实现结果/注意，并修订 §6 D35。复验用独立测试库 `osc_test` 跑两条路径，主库未动。
 > - 2026-09-21 ⑯ **T6 完成**（公开报名页 + 提交接口 + 手机号三分支 + 图形验证码 + 字典编码后端校验 + 草稿暂存 + 成功页；新增超管「纳新设置」页管报名开关/简介/审核时效文案；新增 `tag_text` 列并由 `04_alter.sql` 幂等补列），T6 条目补「技术方案 + 实现结果 + 验证记录 + 验证步骤」，总表状态转 ✅；⑰ §6 新增 D45~D52（报名接口权限 / 手机号三分支 / 字段必填口径 / 字典编码校验 / 文案与开关存放 / 配置白名单 / 隐私文案 / 标签自由补充）。同期修掉两个真实缺陷：重提时脏数据残留、配置值经 mysql 往返导致换行被转义。
 > - 2026-09-21 ⑱ **T7 完成**（审核管理台：列表/筛选/统计 + 通过建号（随机初始密码、首登强制改密、回填 user_id）+ 拒绝留痕 + 批量通过与密码清单 + 部长数据隔离），**端到端链路「通过 → 初始密码登录 → 强制改密 → 进系统」实测跑通**；T7 条目补「技术方案 + 实现结果 + 验证记录 + 验证步骤」，总表状态转 ✅；⑲ §6 新增 D53~D59（审核台接口权限 / 数据隔离 / 建号部门来源 / 重复审核防护 / 手机号冲突 / 报名状态独立枚举 / 默认视图与批量口径）。
+> - 2026-09-23 **T12 完成**（公告系统：管理端发布/编辑/删除 + 成员端列表/详情 + 置顶排序 + **富文本前后端双重 XSS 白名单清洗** + 公告配图；顺带把头像与配图共用的「三层图片校验 / MinIO 建桶」抽成 `ImageValidator`、`MinioSupport`）。接口 **55 项** + 页面 **48 项**实测全部通过（含"库里直插恶意 HTML 走前端兜底"与"375 窄屏零溢出"），`eslint` 0 error、`vite build` 通过；T12 条目补「技术方案 + 实现结果 + 验证记录」，总表状态转 ✅；§6 新增 D81~D87（不沿用紧急公告 / 编辑删除权限边界 / 危险容器连内容删 + svg 拆壳 / 编辑器选型 / 配图存 key 且只认本站 / 不做图片孤儿清理 / EP 内置文案是英文）。
+>
+> 📌 待补：T8~T11 完成时的维护记录未追加（其方案、实现与验证都已写在各自条目与 §6 里，仅本清单末尾这段流水没跟上）。

@@ -41,7 +41,7 @@
 - **端口**：后端 dev 8080 / prod 8081；前端 dev 5173（`/api` 代理到 8080 并剥前缀）
 - **定位**：社团数字档案馆（飞书管今天、OSC 管昨天和明天），V1.0 明示不做 IM / 资产台账 / AI / 官网
 - **范围**：14 个 Must 切片 = 12 核心 + F-013 数据导出 + F-014 反馈入口
-- **当前状态**：T1~T11 已完成并推送，下一个是 **T12 公告系统**
+- **当前状态**：T1~T11 已提交推送；**T12 公告系统已完成、待提交**（改动全在工作树里）；下一个是 **T13 Excel 批量导入**
 
 ---
 
@@ -50,7 +50,7 @@
 1. 本文件 —— 全貌、当前阶段、环境坑、铁律
 2. `.workbuddy/memory/MEMORY.md` —— 项目长期记忆（技术选型、环境怪癖、各任务点红线）
 3. `.workbuddy/memory/YYYY-MM-DD.md` —— 最近工作日志（按日期倒序读最近 1~2 份，信息量最大）
-4. `docs/OSC 社团管理系统 · 开发任务点清单.md` —— **工作台账**：§2 技术栈、§3 总表看进度、§4 任务点详情（方案/实现/验证）、§6 决策 D1~D80
+4. `docs/OSC 社团管理系统 · 开发任务点清单.md` —— **工作台账**：§2 技术栈、§3 总表看进度、§4 任务点详情（方案/实现/验证）、§6 决策 D1~D87
    （**注意编号**：为贯彻「单一出处」，原来的 §0 开发规则 / §1 项目速览已删（内容在本文件），§5 只是指向本文件的指针表 —— 看到编号从头部直接跳到 §2 是正常的）
 5. `docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md` —— **权威需求依据**（按功能卡片 F-001~F-014 按需查）
 6. `docs/OSC 社团管理系统 · 战略定位与价值延伸说明.md` —— 定位与价值规划（答辩/软著/汇报用）
@@ -64,30 +64,33 @@
 
 > **本节是「本轮做什么」的唯一出处**，每次交接由 AI 更新。
 
-**阶段：纳新主链已完成（T1~T11）→ 进入支撑链（T12~T17）**
+**阶段：纳新主链已完成（T1~T11）→ 支撑链进行中（T12 已完成，T13~T17 待做）**
 
-| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / **T11 个人中心**（PRD F-007，首次启用 MinIO） |
+| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO） |
 | ------------ | ------------------------------------------------------------ |
-| 未提交       | 无（工作树干净，仅剩 4 个故意不入库的种子材料与旧承接文档）  |
-| 下一个       | **T12 公告系统**（PRD F-008、切片 8）                        |
-| 后续         | T13 Excel 导入 → T14 数据导出 → T15 基础看板 → T16 反馈入口 → T17 全链路联调上线 |
+| **已完成、未提交** | **T12 公告系统**（PRD F-008）：管理端发布/编辑/删除、成员端列表/详情、置顶排序、**富文本前后端双重 XSS 白名单清洗**、公告配图（MinIO）；接口 55 项 + 页面 48 项实测全过，`eslint` 0 / `vite build` 通过。另有 T11 遗留的**共享工具类抽取**（`ImageValidator` / `MinioSupport`），已含在 T12 改动里 |
+| 下一个       | **T13 Excel 批量导入**（PRD F-009、切片 9）—— **开工前必须先提交 T12**（等社长说「提交 T12」） |
+| 后续         | T14 数据导出 → T15 基础看板 → T16 反馈入口 → T17 全链路联调上线 |
 
-**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T12 公告系统」条目（覆盖 F-008 / 切片 8）。
+**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T12 公告系统」条目（覆盖 F-008 / 切片 8，含技术方案与验证记录）。
 
-**T12 要点（从清单摘出）**：
-- 公告发布/编辑/删除（管理端），列表/详情（成员端）；置顶排序
-- **富文本 XSS 清洗（前后端双重）** —— T11 的决策 D76 明确「富文本编辑器 + XSS 白名单清洗留给 T12 统一做一次」，这是本点的主要技术含量
-- 普通成员只读；置顶排最前
+**T13 要点（从清单摘出）**：
+- 模板下载（列头：姓名、手机号、学号、学院、专业、部门、职位）；上传导入逐行校验；错误行清单（行号+原因）；导入建号 + 一次性密码清单导出
+- 重复手机号 → 该行标记错误并跳过；部门/职位编码非法 → 该行标记错误；模板列头不符 → 提示「请使用标准模板」
+- 这是 **EasyExcel 首次启用**（pom 里本来就留了位）；建号口径沿用 T7：随机初始密码 + `activated_at=NULL`（强制改密）+ 唯一性校验
 
-**T12 开工前必做（环境）**：
-1. **MinIO 必须先起着**：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`，否则头像接口报错
-2. **后端重启前先在 IDEA 里刷新 Maven**：T11 新解开 `io.minio:minio:8.5.12`，不刷新会 `NoClassDefFoundError`
+**T13 开工前必做（环境）**：
+1. **MinIO 必须先起着**（公告/头像都要用）：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`
+   ⚠️ 在本机 shell 里起必须**显式带上 `MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin`**，否则会报 `Unable to validate credentials inherited from the shell environment`
+2. **后端重启前先在 IDEA 里刷新 Maven**：T12 新加了 `org.jsoup:jsoup`，不刷新会 `NoClassDefFoundError`
+3. **前端新增依赖需要 `npm install`**（T12 已装：`@wangeditor-next/editor`、`editor-for-vue`、`dompurify`）；社长的 5173 dev server 建议重启一次
 
-**⚠️ 工作树约定**：T11 已按 server / web / docs 拆 3 个 commit 提交并推送，工作树干净。
-仍常驻 **4 个故意不入库的未跟踪文件**（种子材料与旧承接文档），**切勿 `git add -A`** —— 提交一律只 add 明确路径。
-其中 `docs/旧对话信息承接.md`、`docs/兴趣标签方案.md` 的使命已由本交接文档接管，建议归档到 `Docs Archive`（待用户点头）。
+**⚠️ 工作树约定（T12 之后）**：T12 的改动（server / web / docs）**全部还在工作树里，未 commit** —— 提交时请按功能拆多个 commit（建议：server 公告模块+清洗、web 公告页面与编辑器、docs 台账与交接），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
 
-**❓ 待用户定夺**：三处字典种子存疑项 —— 附件3 的「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
+**❓ 待用户定夺**：
+1. 三处字典种子存疑项 —— 附件3 的「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
+2. **Element Plus 全站内置文案是英文**（确认框按钮显示 OK / Cancel，见清单 §6 D87）—— 建议另开一个小任务点统一配 `zh-cn` locale（改 `App.vue` 一处即可），本轮只在公告删除确认框做了局部兜底。
+3. 公告图片**不做孤儿清理**（删公告不删图，见 §6 D86）—— 如需要回收桶里无引用的对象，可另开任务点。
 
 ---
 
@@ -120,6 +123,24 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 - ⚠️ **`-Dfile.encoding=UTF-8` 必须带引号**：`"-Dfile.encoding=UTF-8"`，否则 PS 5.1 拆成 `.encoding=UTF-8`。
 - ⚠️ **页面验证必须用 Chrome 无头 + CDP 设备模拟**：Windows 上 `--window-size=375` 会被系统最小窗口宽度顶掉（实际视口 504），
   用 `Emulation.setDeviceMetricsOverride` 才是真实移动视口（做法见 MEMORY.md）。
+- ⚠️ **`__vueParentComponent` 只存在于 dev 构建**（T12 实测）：`web/dist` 里搜不到这个属性，所以
+  「取组件 `setupState` 直接改内部状态」那招**只在打 5173 dev server 时有效**。要验证 `dist` 产物（如 5180 预览栈），
+  必须走真实 DOM 交互：输入框用 `value` setter + 派发 `input` 事件，富文本编辑区用
+  `Input.insertText`（CDP）真实录入。别再照抄 T8/T10 的 setupState 写法。
+- ⚠️ **Element Plus 内置文案默认是英文**：全站没配 `zh-cn` locale，`ElMessageBox` 的按钮是 **OK / Cancel**、
+  分页与空态也是英文（影响 T4~T11 所有确认框）。写页面用例断言按钮文案时按英文预期，或显式指定中文按钮文案（见 §6 D87）。
+- ⚠️ **本机 shell 里 node 无法 spawn 外部 exe**（`execFileSync` 报 `EBUSY`，`mysql.exe`/`redis-cli.exe` 都中招）→
+  验证脚本改用：① 内置极简 RESP 客户端直连 Redis 读验证码答案；② 落库值的复核放到 **bash 步骤**里用 mysql 跑（脚本把 id 写进 json 交给下一步）。
+- ⚠️ **Git Bash 会把以 `/` 开头的参数改写成 Windows 路径**：`node cdp.cjs /announcement ...` 传进去的其实是
+  `C:/Users/.../PortableGit/.../announcement` → 拼出的 URL 非法、**导航静默失败**（页面停在上一页，极难排查）。
+  → 路径**写在 JS 文件里**最稳；传参就给完整 URL 或加 `MSYS_NO_PATHCONV=1`。
+- ⚠️ **登录态注入要先站到目标源上再写 `localStorage`**（在 `about:blank` 上写会静默无效）；注入后若目标页
+  没落上，重发一次导航即可（`/login` 的守卫会抢跑把页面替换成 `/home`）。
+- ⚠️ **MinIO 启动的两个坑**：① 必须**显式**带 `MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin`，
+  否则报 `Unable to validate credentials inherited from the shell environment`（宿主注入的 `MINIO_*` 不合法）；
+  ② **别用 `| head` 起**（管道一关进程就被带走），重定向到日志文件再 `run_in_background`。
+- ⚠️ **jsoup 的协议白名单只有 http/https**：相对地址会被判成"非法协议"而把属性/整张图删掉 ——
+  公告正文里存对象 key（`announcements/…`）时，**必须在清洗之前先把 key 展开成完整地址**（见 §6 D85）。
 - ⚠️ **启动命令必须在 `server/` 目录下执行**，否则读不到 `.env`（`spring.config.import` 用相对路径）。
 - ⚠️ **配置值不要经 mysql 批处理往返**：mysql 批处理会把真实换行输出成字面量 `\n`（T6 踩过，简介里出现反斜杠-n）。
   读中文多行值走接口或加 `--raw`。
@@ -185,7 +206,7 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 关键词                 | 落点                                                         |
 | ---------------------- | ------------------------------------------------------------ |
 | 权威需求依据           | `docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md`（F-001~F-014 功能卡片） |
-| 开发台账 / 进度 / 决策 | `docs/OSC 社团管理系统 · 开发任务点清单.md`（§3 总表 / §4 任务点详情 / §6 决策 D1~D80） |
+| 开发台账 / 进度 / 决策 | `docs/OSC 社团管理系统 · 开发任务点清单.md`（§3 总表 / §4 任务点详情 / §6 决策 D1~D87） |
 | 定位与价值             | `docs/OSC 社团管理系统 · 战略定位与价值延伸说明.md`          |
 | 项目记忆               | `.workbuddy/memory/MEMORY.md` + 最新日志                     |
 | 后端工程               | `server/`（`com.tsguosc`，主类 `OscServerApplication`）      |
@@ -202,7 +223,11 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 头像存储               | MinIO；库里只存对象 key（`avatars/{userId}/…`），读时拼公开地址 |
 | 个人中心自助边界       | 姓名 / 手机号**不在** `/user/profile` 请求体里；学号仅空可补录（T11） |
 | 文档架构               | 长期文档四份 + **单一出处**：同一事实只写一处、别处只放指针（见「五、全局铁律」第 3 条） |
-| 富文本 XSS             | **T12 统一做**（T11 决策 D76）                               |
+| 公告系统               | 接口 `/announcement/**`（2 段=登录可读，`/admin/**`=部长及以上）；表 `announcement`（T2 建，T12 零 DDL）；页面 管理端 `AnnouncementAdminView` / 成员端 `AnnouncementView` + `HomeView` 摘要 |
+| 富文本 XSS 清洗        | 后端 `util/HtmlSanitizer`（jsoup 白名单 + style/图片/链接三处加固，`cleanForStore` 入库、`cleanForOutput` 出参）；前端 `utils/sanitizeHtml.js`（DOMPurify）；**唯一允许 `v-html` 富文本的地方** = `AnnouncementDetailDialog.vue` |
+| 公告配图               | MinIO `announcements/{yyyyMM}/{时间戳}.{ext}`；库里只存对象 key、输出拼公开前缀（D85）；上传三层校验复用 `ImageValidator` |
+| 图片校验 / MinIO 公共  | `util/ImageValidator`（扩展名+Content-Type+魔数）、`util/MinioSupport`（建桶+公开读策略）—— 头像与公告配图共用 |
+| 页面用例的驱动方式     | `dist` 产物上只能用真实 DOM 交互（`Input.insertText` / 派发 `input`）；`setupState` 那招只在 dev server 上有效（见「四、环境与坑」） |
 
 ---
 
