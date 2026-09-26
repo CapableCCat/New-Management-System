@@ -9,7 +9,7 @@ import { getConfigList, updateConfig } from '@/api/config'
  * 把报名页要用到的系统配置搬到后台，避免动不动改 SQL：
  *   - 报名开关（recruit_open）
  *   - 审核时效文案（review_notice）
- *   - 社团简介（club_intro，空行分段）
+ *   - 社团简介（club_intro，报名页顶部的一句话；用空行分段也能正常显示）
  * 另外把短信模板与系统访问地址一并列出，方便上线前核对。
  */
 const loading = ref(false)
@@ -35,8 +35,8 @@ const RECRUIT_FIELDS = [
     key: 'club_intro',
     label: '社团简介',
     type: 'textarea',
-    rows: 12,
-    hint: '显示在报名页顶部。用空行分段（建议 3 段：定位 / 方向 / 纳新期待）'
+    rows: 2,
+    hint: '显示在报名页最顶部；建议一句话（报名页只占一行，写长了会占屏）。若确实要写长文案，用空行分段也能正常显示'
   }
 ]
 

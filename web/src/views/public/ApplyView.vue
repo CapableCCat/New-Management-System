@@ -4,20 +4,26 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { areaList } from '@vant/area-data'
 import { getCaptcha } from '@/api/auth'
-import { getRecruitInfo, submitApply } from '@/api/recruit'
+import { submitApply } from '@/api/recruit'
 import { useDictStore } from '@/stores/dict'
+import { useRecruitStore } from '@/stores/recruit'
 
 /**
  * 公开报名页（F-001）—— 纳新主链起点，移动优先
  *
  * 规则：
  *   - 只写 recruit_apply，不建账号（审核通过后由 T7 建号）
- *   - 手机号唯一：待审/已通过 → 友好拒绝；已拒绝 → 覆盖原记录并重置为待审
+ *   - 手机号四种结果都由后端 `200 + nextAction` 下发（见清单 §6 D111）：
+ *     新提交 / 被拒后重提 = 成功；仍在待审 / 已是成员 = **引导**（不是错误，不弹红色报错）
  *   - 兴趣标签按 5 大类分组展示，最多选 3 个；选「其他」出现自由填写框
  *   - 草稿存 localStorage，断网/误刷新不丢（PRD 要求保留已填内容）
+ *   - 顶部只放**一句话介绍**（PRD F-001 第 1 步「一句话介绍」；文案存 `sys_config.club_intro`，后台可改）——
+ *     2026-09-26 由长篇简介精简为一句；后台若改回多段，仍按空行分段渲染
+ *   - 公开页不做导航栏：页与页平级互链，底部只给「已有账号？去登录」（清单 §6 D109）
  */
 const router = useRouter()
 const dictStore = useDictStore()
+const recruitStore = useRecruitStore()
 
 const DRAFT_KEY = 'osc_apply_draft'
 const MAX_TAGS = 3
@@ -73,6 +79,53 @@ const introParagraphs = computed(() =>
     .map((text) => text.trim())
     .filter(Boolean)
 )
+
+/** 结果态的下一步引导（后端 nextAction，见清单 §6 D111 / D109） */
+const NEXT_LOGIN = 'LOGIN'
+
+/**
+ * 结果卡内容：**结果态不是独立页**，只是报名页的一个状态（清单 §6 D109）。
+ *
+ *   - 新提交 / 被拒后重提 / 仍在待审 → 去查询（+ 「已有账号？去登录」出口）
+ *   - 已是正式成员 → 去登录（+ 去查询出口）
+ */
+const resultCard = computed(() => {
+  const phone = result.value?.phone || form.phone
+  const message = result.value?.message || ''
+
+  if (result.value?.nextAction === NEXT_LOGIN) {
+    return {
+      icon: 'friends-o',
+      color: '#409eff',
+      title: '该手机号已是正式成员',
+      lines: [message],
+      primary: { label: '去登录', to: { path: '/login', query: { phone } } },
+      secondary: { label: '去查询审核状态', to: { path: '/query', query: { phone } } }
+    }
+  }
+
+  const titleByState = {
+    SUBMITTED: '报名提交成功',
+    RESUBMITTED: '已重新提交',
+    ALREADY_PENDING: '你已提交过报名'
+  }
+  const alreadyPending = result.value?.state === 'ALREADY_PENDING'
+  const lines = [`我们已收到你用手机号 ${phone} 提交的报名信息。`]
+  if (message) {
+    lines.push(message)
+  }
+  if (info.reviewNotice) {
+    lines.push(info.reviewNotice)
+  }
+  return {
+    icon: alreadyPending ? 'info-o' : 'passed',
+    color: alreadyPending ? '#e6a23c' : '#67c23a',
+    title: titleByState[result.value?.state] || '报名提交成功',
+    lines,
+    primary: { label: '去查询审核进度', to: { path: '/query', query: { phone } } },
+    secondary: { label: '已有账号？去登录', to: { path: '/login', query: { phone } } }
+  }
+})
 
 const isOtherMajor = computed(() => form.major === 'other')
 const isOtherTag = computed(() => form.tags.includes('other'))
@@ -247,14 +300,15 @@ async function onSubmit() {
 }
 
 onMounted(async () => {
-  try {
-    const data = await getRecruitInfo()
+  // 配置走 store 缓存（路由守卫判定落地页时可能已经取过，这里不重复请求）
+  const data = await recruitStore.loadInfo()
+  if (data) {
     Object.assign(info, data)
-  } catch {
+  } else {
     info.open = false
-  } finally {
-    loadingInfo.value = false
   }
+  loadingInfo.value = false
+
   if (info.open) {
     restoreDraft()
     await dictStore.loadMany(['college', 'major', 'department', 'tag'])
@@ -269,25 +323,31 @@ watch(form, saveDraft, { deep: true })
 <template>
   <div class="apply">
     <van-empty v-if="loadingInfo" description="加载中…" />
-    <van-empty v-else-if="!info.open" image="error" description="本轮纳新报名已结束" />
+    <template v-else-if="!info.open">
+      <van-empty image="error" description="本轮纳新报名已结束" />
+      <div class="apply__links">
+        <router-link to="/login">已有账号？去登录</router-link>
+        <router-link to="/query">查询审核状态</router-link>
+      </div>
+    </template>
 
-    <!-- 提交成功 -->
+    <!-- 提交结果（**不是独立页**，只是报名页的一个状态；两个出口：去查询 / 已有账号去登录） -->
     <div v-else-if="submitted" class="apply__success">
-      <van-icon name="passed" class="apply__success-icon" />
-      <p class="apply__success-title">报名提交成功</p>
-      <p class="apply__success-text">
-        我们已收到你用手机号 <b>{{ result?.phone }}</b> 提交的报名。
+      <van-icon
+        :name="resultCard.icon"
+        class="apply__success-icon"
+        :style="{ color: resultCard.color }"
+      />
+      <p class="apply__success-title">{{ resultCard.title }}</p>
+      <p v-for="(line, index) in resultCard.lines" :key="index" class="apply__success-text">
+        {{ line }}
       </p>
-      <p class="apply__success-text">{{ info.reviewNotice }}</p>
-      <p class="apply__success-tip">可随时到「查询审核状态」页，用手机号查看审核进度。</p>
       <div class="apply__success-actions">
-        <van-button
-          round
-          block
-          type="primary"
-          @click="router.push({ path: '/query', query: { phone: result?.phone } })"
-        >
-          去查询审核状态
+        <van-button round block type="primary" @click="router.push(resultCard.primary.to)">
+          {{ resultCard.primary.label }}
+        </van-button>
+        <van-button round block plain @click="router.push(resultCard.secondary.to)">
+          {{ resultCard.secondary.label }}
         </van-button>
       </div>
     </div>
@@ -438,6 +498,11 @@ watch(form, saveDraft, { deep: true })
           </van-button>
         </div>
       </van-form>
+
+      <div class="apply__links">
+        <router-link to="/login">已有账号？去登录</router-link>
+        <router-link to="/query">查询审核状态</router-link>
+      </div>
     </template>
 
     <van-popup v-model:show="pickerShow" position="bottom" round>
@@ -467,19 +532,20 @@ watch(form, saveDraft, { deep: true })
   padding: 12px 0 24px;
 }
 
+/* 顶部一句话介绍：轻量一行，不占屏（长篇简介已精简；后台改回多段也能正常分段渲染） */
 .apply__intro {
-  margin: 0 12px 16px;
-  padding: 14px;
-  border-radius: var(--brand-radius);
-  background: #fff;
+  margin: 4px 12px 14px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--brand-primary);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--brand-primary) 6%, #fff);
 }
 
 .apply__intro-p {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   font-size: 13px;
-  line-height: 1.9;
+  line-height: 1.7;
   color: #4b5563;
-  text-align: justify;
 }
 
 .apply__intro-p:last-child {
@@ -576,13 +642,25 @@ watch(form, saveDraft, { deep: true })
   color: #606266;
 }
 
-.apply__success-tip {
-  margin: 0 0 20px;
-  font-size: 12px;
-  color: #909399;
+/* 公开页平级互链（清单 §6 D109）：各页只给出口，不做全局导航栏 */
+.apply__links {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 16px 16px 0;
+  font-size: 13px;
+}
+
+.apply__links a {
+  color: var(--brand-primary);
+  text-decoration: none;
 }
 
 .apply__success-actions {
+  margin-top: 20px;
   padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 </style>
