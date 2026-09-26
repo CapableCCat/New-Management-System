@@ -16,7 +16,7 @@ import { setupRouterGuard } from './guard'
  *   task    该页面由哪个任务点实现（T3 阶段各页面均为占位）
  */
 const routes = [
-  { path: '/', redirect: '/login' },
+  // 根路径 `/` 不写死落点：由路由守卫按 recruit_open 动态决定（见 guard.js 与清单 §6 D110）
 
   // ---------- 公开端 ----------
   {

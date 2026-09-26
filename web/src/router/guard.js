@@ -1,5 +1,6 @@
 import { ElMessage } from 'element-plus'
 import { APP_NAME, ROUTE_PATH } from '@/constants/app'
+import { useRecruitStore } from '@/stores/recruit'
 import { useUserStore } from '@/stores/user'
 
 /**
@@ -8,9 +9,10 @@ import { useUserStore } from '@/stores/user'
  * 顺序：
  *   1. 页面标题
  *   2. 系统初始化：未初始化 → 强制去引导页；已初始化 → 引导页不可再进
- *   3. 登录态：公开页放行，其余未登录跳登录页（带 redirect）
- *   4. 首登强制改密：未改密只能待在改密页（后端拦截器同样会兜底）
- *   5. 角色骨架：管理端资格 / 社长团资格（leaderGroup）/ 超管专属页
+ *   3. 根路径落地页：登录用户进工作台；未登录按 recruit_open 决定报名页 / 登录页
+ *   4. 登录态：公开页放行，其余未登录跳登录页（带 redirect）
+ *   5. 首登强制改密：未改密只能待在改密页（后端拦截器同样会兜底）
+ *   6. 角色骨架：管理端资格 / 社长团资格（leaderGroup）/ 超管专属页
  *
  * 真正的权限判定在后端；前端只负责"别让用户点进去白跑一趟"。
  */
@@ -36,7 +38,18 @@ export function setupRouterGuard(router) {
       return { path: ROUTE_PATH.LOGIN }
     }
 
-    // 2. 公开页
+    // 2. 根路径落地页（清单 §6 D110）：落点不写死，按 recruit_open 动态决定 ——
+    //    登录用户直接进工作台；未登录时报名开关打开 → 报名页，关闭 → 登录页。
+    //    开关取不到（后端不可用）时按更保守的登录页处理。
+    if (to.path === '/') {
+      if (userStore.isLoggedIn) {
+        return { path: ROUTE_PATH.HOME }
+      }
+      const open = await useRecruitStore().loadOpen()
+      return { path: open ? ROUTE_PATH.APPLY : ROUTE_PATH.LOGIN }
+    }
+
+    // 3. 公开页
     if (to.meta.public) {
       if (to.name === 'login' && userStore.isLoggedIn) {
         return { path: ROUTE_PATH.HOME }
@@ -44,17 +57,17 @@ export function setupRouterGuard(router) {
       return true
     }
 
-    // 3. 需要登录
+    // 4. 需要登录
     if (!userStore.isLoggedIn) {
       return { path: ROUTE_PATH.LOGIN, query: { redirect: to.fullPath } }
     }
 
-    // 4. 首登强制改密
+    // 5. 首登强制改密
     if (userStore.needChangePassword && to.path !== ROUTE_PATH.CHANGE_PASSWORD) {
       return { path: ROUTE_PATH.CHANGE_PASSWORD }
     }
 
-    // 5. 角色骨架
+    // 6. 角色骨架
     if (to.meta.admin && !userStore.canEnterAdminPage) {
       ElMessage.warning('没有管理端访问权限')
       return { path: ROUTE_PATH.HOME }

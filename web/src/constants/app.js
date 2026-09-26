@@ -19,6 +19,8 @@ export const STORAGE_KEY = {
 export const ROUTE_PATH = {
   LOGIN: '/login',
   INIT: '/init',
+  APPLY: '/apply',
+  QUERY: '/query',
   CHANGE_PASSWORD: '/change-password',
   HOME: '/home'
 }

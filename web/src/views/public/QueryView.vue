@@ -3,7 +3,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getCaptcha } from '@/api/auth'
-import { getRecruitInfo, queryApplyStatus } from '@/api/recruit'
+import { queryApplyStatus } from '@/api/recruit'
+import { useRecruitStore } from '@/stores/recruit'
 
 /**
  * 审核状态查询页（F-005）—— 公开访问，移动优先
@@ -12,10 +13,14 @@ import { getRecruitInfo, queryApplyStatus } from '@/api/recruit'
  *   - 凭手机号 + 一次性图形验证码查询（防脚本批量探测手机号）
  *   - 只展示状态与拒绝原因，不显示姓名 / 学院等其他信息
  *   - 不受报名开关影响：报名已结束也要能查进度
- *   - 手机号从 route.query.phone 预填（报名成功页的「去查询审核状态」带过来）
+ *   - 手机号从 route.query.phone 预填（报名结果态的「去查询」带过来）
+ *   - 三种状态各给一个主操作（清单 §6 D109）：已通过 → 去登录；已拒绝 → 重新报名；
+ *     未找到 → 去报名；待审 → 只留「再查一次」
+ *   - 公开页不做导航栏：底部只给「已有账号？去登录」「去报名」两个平级出口
  */
 const route = useRoute()
 const router = useRouter()
+const recruitStore = useRecruitStore()
 
 /** 报名状态枚举（recruit_apply 自己的，与字典「账号状态」无关，见 D58） */
 const STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2 }
@@ -38,7 +43,7 @@ const statusView = computed(() => {
       icon: 'passed',
       color: '#67c23a',
       title: '恭喜！你的报名已通过审核',
-      text: '请前往登录页，用报名手机号和初始密码激活账号。'
+      text: '请用报名手机号 + 审核台发放的初始密码登录（首次登录会要求修改密码）。'
     }
   }
   if (result.value?.status === STATUS.REJECTED) {
@@ -114,11 +119,10 @@ onMounted(async () => {
   if (typeof phone === 'string') {
     form.phone = phone
   }
-  try {
-    const data = await getRecruitInfo()
+  // 审核时效文案走 store 缓存（与报名页共用一次请求）
+  const data = await recruitStore.loadInfo()
+  if (data) {
     info.reviewNotice = data.reviewNotice || ''
-  } catch {
-    // 拿不到审核时效文案不影响查询
   }
   refreshCaptcha()
 })
@@ -177,6 +181,11 @@ onMounted(async () => {
         </div>
         <p class="query__tip">查询需填写图形验证码，用于防止他人批量试探手机号。</p>
       </van-form>
+
+      <div class="query__links">
+        <router-link to="/login">已有账号？去登录</router-link>
+        <router-link to="/apply">去报名</router-link>
+      </div>
     </template>
 
     <!-- 查询结果 -->
@@ -194,14 +203,24 @@ onMounted(async () => {
       </p>
 
       <div class="query__result-actions">
+        <!-- 三种状态各给一个主操作；待审只留「再查一次」 -->
         <van-button
           v-if="found && result.status === STATUS.APPROVED"
           round
           block
           type="primary"
-          @click="router.push('/login')"
+          @click="router.push({ path: '/login', query: { phone: form.phone } })"
         >
-          去登录激活账号
+          去登录
+        </van-button>
+        <van-button
+          v-else-if="found && result.status === STATUS.REJECTED"
+          round
+          block
+          type="primary"
+          @click="router.push('/apply')"
+        >
+          重新报名
         </van-button>
         <van-button v-else-if="!found" round block type="primary" @click="router.push('/apply')">
           去报名
@@ -264,6 +283,20 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.7;
   color: #909399;
+}
+
+/* 公开页平级互链（清单 §6 D109）：各页只给出口，不做全局导航栏 */
+.query__links {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 16px 16px 0;
+  font-size: 13px;
+}
+
+.query__links a {
+  color: var(--brand-primary);
+  text-decoration: none;
 }
 
 .query__result {

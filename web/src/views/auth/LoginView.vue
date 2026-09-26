@@ -48,7 +48,14 @@ async function onSubmit() {
   }
 }
 
-onMounted(refreshCaptcha)
+onMounted(() => {
+  // 查询页「去登录」会把报名手机号带过来，省得再输一遍
+  const phone = route.query.phone
+  if (typeof phone === 'string') {
+    form.phone = phone
+  }
+  refreshCaptcha()
+})
 </script>
 
 <template>
@@ -103,9 +110,10 @@ onMounted(refreshCaptcha)
       </div>
     </van-form>
 
+    <!-- 公开三页平级互链（清单 §6 D109）：登录页只给「去报名 / 查审核进度」两个出口 -->
     <div class="login__links">
-      <router-link to="/apply">我要报名</router-link>
-      <router-link to="/query">查询审核状态</router-link>
+      <router-link to="/apply">去报名</router-link>
+      <router-link to="/query">查审核进度</router-link>
     </div>
 
     <HealthCheckCard v-if="isDev" />
