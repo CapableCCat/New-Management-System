@@ -7,6 +7,7 @@ import { getCaptcha } from '@/api/auth'
 import { submitApply } from '@/api/recruit'
 import { useDictStore } from '@/stores/dict'
 import { useRecruitStore } from '@/stores/recruit'
+import FeedbackDialog from '@/components/FeedbackDialog.vue'
 
 /**
  * 公开报名页（F-001）—— 纳新主链起点，移动优先
@@ -31,6 +32,8 @@ const MAX_TAGS = 3
 const loadingInfo = ref(true)
 const saving = ref(false)
 const submitted = ref(false)
+/** 反馈弹窗（F-014，T16） */
+const feedbackVisible = ref(false)
 const result = ref(null)
 const info = reactive({ open: true, clubIntro: '', reviewNotice: '' })
 const captchaImage = ref('')
@@ -350,6 +353,11 @@ watch(form, saveDraft, { deep: true })
           {{ resultCard.secondary.label }}
         </van-button>
       </div>
+
+      <p class="apply__feedback">
+        用着不顺手？
+        <a class="apply__feedback-link" @click="feedbackVisible = true">说两句（不用登录）</a>
+      </p>
     </div>
 
     <!-- 报名表单 -->
@@ -524,6 +532,10 @@ watch(form, saveDraft, { deep: true })
         @cancel="areaShow = false"
       />
     </van-popup>
+
+    <!-- 反馈入口（F-014，来源 1 = 报名成功页）：新生这里多半还没账号，
+         所以提交接口免登录，但必须带一次性图形验证码 -->
+    <FeedbackDialog v-model="feedbackVisible" :source="1" />
   </div>
 </template>
 
@@ -662,5 +674,18 @@ watch(form, saveDraft, { deep: true })
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 反馈入口（F-014）：轻量一行，不抢按钮的注意力 */
+.apply__feedback {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: #909399;
+}
+
+.apply__feedback-link {
+  color: var(--brand-primary);
+  cursor: pointer;
 }
 </style>

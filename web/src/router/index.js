@@ -9,6 +9,7 @@ import {
   canReviewRecruit,
   canViewAnnouncement,
   canViewDashboard,
+  canViewFeedback,
   canViewMemberRoster
 } from '@/constants/roles'
 import { setupRouterGuard } from './guard'
@@ -116,6 +117,12 @@ const routes = [
           task: 'T12',
           menu: { order: 60, capability: canManageAnnouncement }
         }
+      },
+      {
+        path: '/admin/feedback',
+        name: 'adminFeedback',
+        component: () => import('@/views/admin/FeedbackView.vue'),
+        meta: { title: '反馈列表', task: 'T16', menu: { order: 65, capability: canViewFeedback } }
       },
       {
         path: '/admin/dashboard',

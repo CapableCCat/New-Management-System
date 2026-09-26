@@ -11,9 +11,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getApplyStats } from '@/api/recruit'
-import { canExportData, canImportMembers, canManageAll, canReviewRecruit } from '@/constants/roles'
+import { getFeedbackList } from '@/api/feedback'
+import {
+  canExportData,
+  canImportMembers,
+  canManageAll,
+  canReviewRecruit,
+  canViewFeedback
+} from '@/constants/roles'
 import { useDictStore } from '@/stores/dict'
 import { useUserStore } from '@/stores/user'
+import FeedbackDialog from '@/components/FeedbackDialog.vue'
 
 const router = useRouter()
 const dictStore = useDictStore()
@@ -23,10 +31,15 @@ const profile = computed(() => userStore.profile || {})
 const loadingStats = ref(false)
 /** 待审报名数：null = 不适用或没拿到 */
 const pendingCount = ref(null)
+/** 未处理反馈数（仅社长团 / 超管去取） */
+const unhandledFeedback = ref(null)
+const loadingFeedback = ref(false)
+const feedbackVisible = ref(false)
 
 const showReview = computed(() => canReviewRecruit(profile.value))
 const showImport = computed(() => canImportMembers(profile.value))
 const showExport = computed(() => canExportData(profile.value))
+const showFeedback = computed(() => canViewFeedback(profile.value))
 const fullScope = computed(() => canManageAll(profile.value))
 
 /** 资料完整度：列出还没填的项（学号 / 生源地 / 个人简介） */
@@ -57,17 +70,28 @@ function go(path) {
 
 onMounted(async () => {
   await dictStore.loadMany(['department', 'duty'])
-  if (!showReview.value) {
-    return
+  if (showReview.value) {
+    loadingStats.value = true
+    try {
+      const data = await getApplyStats()
+      pendingCount.value = data ? data.pending : null
+    } catch {
+      pendingCount.value = null
+    } finally {
+      loadingStats.value = false
+    }
   }
-  loadingStats.value = true
-  try {
-    const data = await getApplyStats()
-    pendingCount.value = data ? data.pending : null
-  } catch {
-    pendingCount.value = null
-  } finally {
-    loadingStats.value = false
+  if (showFeedback.value) {
+    loadingFeedback.value = true
+    try {
+      // 只要 total：拿一页一条即可，不必把内容都拉回来
+      const data = await getFeedbackList({ handled: 0, page: 1, size: 1 })
+      unhandledFeedback.value = data ? data.total : null
+    } catch {
+      unhandledFeedback.value = null
+    } finally {
+      loadingFeedback.value = false
+    }
   }
 })
 </script>
@@ -133,11 +157,24 @@ onMounted(async () => {
           <div class="workbench__card-hint">在成员档案页与审核台按当前筛选导出</div>
         </div>
 
-        <!-- 意见反馈（T16 占位：不假装有数字，明确标注待接入） -->
-        <div class="workbench__card is-placeholder">
+        <!-- 意见反馈（T16）：全员可提交；公开页（报名结果态）另有免登录入口 -->
+        <div class="workbench__card is-action" @click="feedbackVisible = true">
           <div class="workbench__card-label">意见反馈</div>
-          <div class="workbench__card-value">待接入</div>
-          <div class="workbench__card-hint">T16 反馈入口任务点接入</div>
+          <div class="workbench__card-value">说点什么</div>
+          <div class="workbench__card-hint">用着不顺手、想看什么功能，都可以直接提</div>
+        </div>
+
+        <!-- 反馈待查看（社长团 / 超管）：复盘的输入 -->
+        <div
+          v-if="showFeedback"
+          class="workbench__card is-action"
+          @click="go('/admin/feedback')"
+        >
+          <div class="workbench__card-label">反馈待查看</div>
+          <div class="workbench__card-value">
+            {{ loadingFeedback || unhandledFeedback === null ? '—' : unhandledFeedback }}
+          </div>
+          <div class="workbench__card-hint">未处理的反馈条数 · 点击去看</div>
         </div>
       </div>
 
@@ -149,6 +186,9 @@ onMounted(async () => {
         逛逛吧。
       </p>
     </section>
+
+    <!-- 来源 2 = 成员端（字典 feedback_source） -->
+    <FeedbackDialog v-model="feedbackVisible" :source="2" />
   </div>
 </template>
 
@@ -197,11 +237,6 @@ onMounted(async () => {
 .workbench__card.is-action:hover {
   border-color: var(--brand-primary);
   box-shadow: 0 2px 12px rgb(0 0 0 / 6%);
-}
-
-.workbench__card.is-placeholder {
-  border-style: dashed;
-  background: #fafafa;
 }
 
 .workbench__card-label {
