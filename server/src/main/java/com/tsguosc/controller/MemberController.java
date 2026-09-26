@@ -9,8 +9,10 @@ import com.tsguosc.dto.MemberQuery;
 import com.tsguosc.dto.MemberUpdateRequest;
 import com.tsguosc.dto.PageResult;
 import com.tsguosc.dto.UserVO;
+import com.tsguosc.service.ExportService;
 import com.tsguosc.service.MemberImportService;
 import com.tsguosc.service.MemberService;
+import com.tsguosc.util.ExcelExporter;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 成员档案（F-006）+ Excel 批量导入（F-009）—— 成员端「成员展板」与管理端「成员档案」共用。
@@ -44,8 +48,12 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class MemberController {
 
+    /** 导出文件名里的日期（PRD F-013：成员名册_YYYYMMDD.xlsx） */
+    private static final DateTimeFormatter FILE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
+
     private final MemberService memberService;
     private final MemberImportService memberImportService;
+    private final ExportService exportService;
 
     /** 成员列表（分页 + 多条件检索；行范围与列范围按当前角色裁剪） */
     @GetMapping("/list")
@@ -84,5 +92,20 @@ public class MemberController {
     @SaCheckRole(value = {Roles.SUPER_ADMIN, Roles.LEADER_GROUP}, mode = SaMode.OR)
     public Result<ImportResultVO> importMembers(@RequestParam("file") MultipartFile file) {
         return Result.ok(memberImportService.importMembers(file), "导入完成");
+    }
+
+    /**
+     * 导出成员名册（PRD F-013：`成员名册_YYYYMMDD.xlsx`）。
+     *
+     * <p>查询参数与成员档案列表同一套，即 PRD 的「支持按当前筛选条件导出」；不传则导全量。
+     * 权限只给超管 / 社长团（PRD：其他角色不可）——与导入同一把闸门。
+     */
+    @GetMapping("/admin/export")
+    @SaCheckRole(value = {Roles.SUPER_ADMIN, Roles.LEADER_GROUP}, mode = SaMode.OR)
+    public void exportRoster(MemberQuery query, HttpServletResponse response) throws IOException {
+        byte[] data = exportService.exportMemberRoster(query);
+        String date = LocalDate.now().format(FILE_DATE);
+        ExcelExporter.writeToResponse(response,
+                "成员名册_" + date + ".xlsx", "member-roster_" + date + ".xlsx", data);
     }
 }
