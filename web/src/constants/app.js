@@ -12,7 +12,9 @@ export const TOKEN_HEADER = 'osc-token'
 export const STORAGE_KEY = {
   TOKEN: 'osc_token',
   PROFILE: 'osc_profile',
-  LOCALE: 'osc_locale'
+  LOCALE: 'osc_locale',
+  /** 上次查看公告的时间（本地时区的 ISO 串，与后端 LocalDateTime 同格式；T19 红点用） */
+  ANNOUNCEMENT_READ_AT: 'osc_announcement_read_at'
 }
 
 /** 路由 path */
@@ -22,5 +24,7 @@ export const ROUTE_PATH = {
   APPLY: '/apply',
   QUERY: '/query',
   CHANGE_PASSWORD: '/change-password',
-  HOME: '/home'
+  HOME: '/home',
+  ANNOUNCEMENT: '/announcement',
+  PROFILE: '/profile'
 }

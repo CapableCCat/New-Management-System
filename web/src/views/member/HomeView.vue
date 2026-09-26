@@ -1,114 +1,159 @@
 <script setup>
 /**
- * 成员端首页（PRD F-008 公告摘要 + §8.2 页面地图）
+ * 工作台（内部场景落地页）—— T19
  *
- * 本轮只做「公告摘要」这一块（路由 meta 里首页归属 T12）：
- * 取置顶 + 最新的若干条，点击跳到公告页并直接展开详情（`/announcement?open=<id>`）。
- * 反馈入口属于 T16，快捷入口等后续任务点补齐。
+ * 首页**不是内容门面**（清单 §6 D107）：原来那张公告摘要卡**撤掉**（公告走「公告」菜单 +
+ * 右上角铃铛红点），这里改为**按角色的待办与入口**。
+ *
+ * 「谁能看到什么」全部走 `constants/roles.js` 的具名能力函数 —— 与路由菜单、守卫同源。
+ * 成员没有管理资格时，这里连 `/recruit/admin/stats` 都不会去请求（否则会拿到 40300）。
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAnnouncementList } from '@/api/announcement'
+import { getApplyStats } from '@/api/recruit'
+import { canExportData, canImportMembers, canManageAll, canReviewRecruit } from '@/constants/roles'
 import { useDictStore } from '@/stores/dict'
 import { useUserStore } from '@/stores/user'
-import { canEnterAdmin } from '@/constants/roles'
 
 const router = useRouter()
 const dictStore = useDictStore()
 const userStore = useUserStore()
 
-const loading = ref(false)
-const announcements = ref([])
-
 const profile = computed(() => userStore.profile || {})
-const canEnterAdminPage = computed(() => canEnterAdmin(profile.value))
+const loadingStats = ref(false)
+/** 待审报名数：null = 不适用或没拿到 */
+const pendingCount = ref(null)
 
-function timeLabel(value) {
-  return value ? String(value).replace('T', ' ').slice(0, 16) : '—'
-}
+const showReview = computed(() => canReviewRecruit(profile.value))
+const showImport = computed(() => canImportMembers(profile.value))
+const showExport = computed(() => canExportData(profile.value))
+const fullScope = computed(() => canManageAll(profile.value))
 
-function deptLabel() {
-  return dictStore.labelOf('department', profile.value.department) || '未分配'
-}
-
-function dutyLabel() {
-  return dictStore.labelOf('duty', profile.value.duty) || '成员'
-}
-
-async function load() {
-  loading.value = true
-  try {
-    // 置顶优先 + 发布时间倒序由后端保证，这里取前 5 条即可
-    const data = await getAnnouncementList({ page: 1, size: 5 })
-    announcements.value = data.records || []
-  } finally {
-    loading.value = false
+/** 资料完整度：列出还没填的项（学号 / 生源地 / 个人简介） */
+const missingFields = computed(() => {
+  const p = profile.value
+  const missing = []
+  if (!p.studentId) {
+    missing.push('学号')
   }
-}
+  if (!p.province) {
+    missing.push('生源地')
+  }
+  if (!p.bio) {
+    missing.push('个人简介')
+  }
+  return missing
+})
 
-function openAnnouncement(row) {
-  router.push({ path: '/announcement', query: { open: row.id } })
+const deptLabel = computed(
+  () => dictStore.labelOf('department', profile.value.department) || '未分配'
+)
+
+const dutyLabel = computed(() => dictStore.labelOf('duty', profile.value.duty) || '成员')
+
+function go(path) {
+  router.push(path)
 }
 
 onMounted(async () => {
   await dictStore.loadMany(['department', 'duty'])
-  await load()
+  if (!showReview.value) {
+    return
+  }
+  loadingStats.value = true
+  try {
+    const data = await getApplyStats()
+    pendingCount.value = data ? data.pending : null
+  } catch {
+    pendingCount.value = null
+  } finally {
+    loadingStats.value = false
+  }
 })
 </script>
 
 <template>
-  <div class="page home">
-    <div class="home__welcome">
-      <div class="home__welcome-main">
+  <div class="page workbench">
+    <section class="workbench__welcome">
+      <div class="workbench__welcome-main">
         <h2 class="page-title">你好，{{ profile.name || '同学' }}</h2>
         <p class="page-desc">
-          {{ deptLabel() }} · {{ dutyLabel() }}
+          {{ deptLabel }} · {{ dutyLabel }}
           <span v-if="!profile.department && !profile.duty">（入社信息待社长团分配）</span>
         </p>
       </div>
-      <el-button v-if="canEnterAdminPage" @click="router.push('/admin/audit')">进入管理端</el-button>
-    </div>
+      <el-button v-if="showReview" type="primary" @click="go('/admin/audit')">去审核台</el-button>
+    </section>
 
-    <div class="home__section">
-      <div class="home__section-head">
-        <h3 class="home__section-title">公告</h3>
-        <el-button link type="primary" size="small" @click="router.push('/announcement')">
-          查看全部
-        </el-button>
-      </div>
+    <section class="workbench__section">
+      <h3 class="workbench__section-title">待办与入口</h3>
 
-      <div v-loading="loading" class="home__announcements">
+      <div class="workbench__grid">
+        <!-- 待审报名（部长起）：数字按可见范围统计（部长=本部门） -->
         <div
-          v-for="row in announcements"
-          :key="row.id"
-          class="home__announcement"
-          :class="{ 'is-top': row.isTop === 1 }"
-          @click="openAnnouncement(row)"
+          v-if="showReview"
+          class="workbench__card is-action"
+          @click="go('/admin/audit')"
         >
-          <div class="home__announcement-head">
-            <el-tag v-if="row.isTop === 1" type="danger" size="small" effect="plain">置顶</el-tag>
-            <span class="home__announcement-title">{{ row.title }}</span>
+          <div class="workbench__card-label">待审报名</div>
+          <div class="workbench__card-value">
+            {{ loadingStats || pendingCount === null ? '—' : pendingCount }}
           </div>
-          <p class="home__announcement-summary">{{ row.summary || '（点击查看详情）' }}</p>
-          <div class="home__announcement-meta">
-            <span>{{ row.authorName || '开源鸿蒙社' }}</span>
-            <span>{{ timeLabel(row.createdAt) }}</span>
+          <div class="workbench__card-hint">
+            {{ fullScope ? '全社范围' : '本部门范围' }} · 点击去审核
           </div>
         </div>
-        <p v-if="!loading && !announcements.length" class="home__empty">
-          暂时还没有公告，先去看看
-          <el-button link type="primary" size="small" @click="router.push('/members')">成员列表</el-button>
-          吧
-        </p>
-      </div>
-    </div>
 
-    <p class="home__todo">反馈入口与更多快捷入口将在后续任务点补充（T16）。</p>
+        <!-- 资料完整度：全员 -->
+        <div class="workbench__card is-action" @click="go('/profile')">
+          <div class="workbench__card-label">资料完整度</div>
+          <div class="workbench__card-value">
+            {{ missingFields.length ? `缺 ${missingFields.length} 项` : '已完善' }}
+          </div>
+          <div class="workbench__card-hint">
+            {{
+              missingFields.length
+                ? `待补：${missingFields.join(' / ')}`
+                : '资料齐全，可在个人中心随时修改'
+            }}
+          </div>
+        </div>
+
+        <!-- Excel 导入（社长团 / 超管） -->
+        <div v-if="showImport" class="workbench__card is-action" @click="go('/admin/import')">
+          <div class="workbench__card-label">Excel 导入</div>
+          <div class="workbench__card-value">批量建号</div>
+          <div class="workbench__card-hint">下载模板 → 上传 → 一次性密码清单</div>
+        </div>
+
+        <!-- 数据导出（社长团 / 超管）：导出按钮在成员档案页与审核台 -->
+        <div v-if="showExport" class="workbench__card is-action" @click="go('/admin/members')">
+          <div class="workbench__card-label">数据导出</div>
+          <div class="workbench__card-value">成员名册 / 报名数据</div>
+          <div class="workbench__card-hint">在成员档案页与审核台按当前筛选导出</div>
+        </div>
+
+        <!-- 意见反馈（T16 占位：不假装有数字，明确标注待接入） -->
+        <div class="workbench__card is-placeholder">
+          <div class="workbench__card-label">意见反馈</div>
+          <div class="workbench__card-value">待接入</div>
+          <div class="workbench__card-hint">T16 反馈入口任务点接入</div>
+        </div>
+      </div>
+
+      <p v-if="!showReview && !showImport && !showExport" class="workbench__calm">
+        暂时没有待办事项，去
+        <el-button link type="primary" size="small" @click="go('/announcement')">公告</el-button>
+        或
+        <el-button link type="primary" size="small" @click="go('/members')">成员列表</el-button>
+        逛逛吧。
+      </p>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.home__welcome {
+.workbench__welcome {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -116,95 +161,71 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.home__welcome-main h2 {
+.workbench__welcome-main :deep(.page-title) {
   margin: 0;
 }
 
-.home__section {
+.workbench__section {
   margin-top: 20px;
 }
 
-.home__section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.home__section-title {
-  margin: 0;
+.workbench__section-title {
+  margin: 0 0 10px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   color: #303133;
 }
 
-.home__announcements {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 60px;
+.workbench__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
 }
 
-.home__announcement {
-  padding: 12px 14px;
+.workbench__card {
+  padding: 14px 16px;
   border: 1px solid #ebeef5;
-  border-left: 3px solid transparent;
   border-radius: var(--brand-radius);
   background: #fff;
+}
+
+.workbench__card.is-action {
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.home__announcement:hover {
+.workbench__card.is-action:hover {
   border-color: var(--brand-primary);
   box-shadow: 0 2px 12px rgb(0 0 0 / 6%);
 }
 
-.home__announcement.is-top {
-  border-left-color: #f56c6c;
-  background: #fffafa;
+.workbench__card.is-placeholder {
+  border-style: dashed;
+  background: #fafafa;
 }
 
-.home__announcement-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.workbench__card-label {
+  font-size: 13px;
+  color: #909399;
 }
 
-.home__announcement-title {
-  font-size: 15px;
+.workbench__card-value {
+  margin: 6px 0 4px;
+  font-size: 20px;
   font-weight: 500;
   color: #303133;
   word-break: break-word;
 }
 
-.home__announcement-summary {
-  margin: 6px 0 6px;
-  font-size: 13px;
+.workbench__card-hint {
+  font-size: 12px;
   line-height: 1.6;
-  color: #606266;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.home__announcement-meta {
-  display: flex;
-  gap: 14px;
-  font-size: 12px;
   color: #909399;
 }
 
-.home__empty {
-  padding: 28px 0;
-  text-align: center;
+.workbench__calm {
+  margin: 14px 0 0;
+  font-size: 13px;
   color: #909399;
-}
-
-.home__todo {
-  margin-top: 20px;
-  font-size: 12px;
-  color: #c0c4cc;
 }
 </style>

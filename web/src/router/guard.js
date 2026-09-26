@@ -12,7 +12,7 @@ import { useUserStore } from '@/stores/user'
  *   3. 根路径落地页：登录用户进工作台；未登录按 recruit_open 决定报名页 / 登录页
  *   4. 登录态：公开页放行，其余未登录跳登录页（带 redirect）
  *   5. 首登强制改密：未改密只能待在改密页（后端拦截器同样会兜底）
- *   6. 角色骨架：管理端资格 / 社长团资格（leaderGroup）/ 超管专属页
+ *   6. 资格判定：按路由 `meta.menu.capability`（与菜单可见性共用一份声明）
  *
  * 真正的权限判定在后端；前端只负责"别让用户点进去白跑一趟"。
  */
@@ -67,17 +67,11 @@ export function setupRouterGuard(router) {
       return { path: ROUTE_PATH.CHANGE_PASSWORD }
     }
 
-    // 6. 角色骨架
-    if (to.meta.admin && !userStore.canEnterAdminPage) {
-      ElMessage.warning('没有管理端访问权限')
-      return { path: ROUTE_PATH.HOME }
-    }
-    if (to.meta.leaderGroup && !userStore.canManageAllUsers) {
-      ElMessage.warning('仅社长团与超管可访问')
-      return { path: ROUTE_PATH.HOME }
-    }
-    if (to.meta.superAdmin && !userStore.isSuperAdminUser) {
-      ElMessage.warning('仅超管可访问')
+    // 6. 资格判定（T19）：用路由 `meta.menu.capability` —— 与菜单可见性**共用同一份声明**，
+    //    所以不可能出现"菜单里点不进去"或"能进但菜单不显示"（清单 §6 D108）
+    const capability = to.meta.menu && to.meta.menu.capability
+    if (typeof capability === 'function' && !capability(userStore.profile)) {
+      ElMessage.warning(to.meta.title ? `没有访问「${to.meta.title}」的权限` : '没有访问权限')
       return { path: ROUTE_PATH.HOME }
     }
 

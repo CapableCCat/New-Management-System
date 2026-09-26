@@ -12,6 +12,7 @@ import {
 } from '@/api/recruit'
 import { useDictStore } from '@/stores/dict'
 import { useUserStore } from '@/stores/user'
+import { canManageAll } from '@/constants/roles'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { copyText } from '@/utils/sms'
 import { downloadCsv as downloadCsvFile, today } from '@/utils/csv'
@@ -54,8 +55,8 @@ const query = reactive({
   size: 20
 })
 
-/** 社长团 / 超管 = 全量范围；部长 = 本部门范围 */
-const isFullScope = computed(() => userStore.isSuperAdminUser || userStore.canManageAllUsers)
+/** 社长团 / 超管 = 全量范围；部长 = 本部门范围（能力判定统一收在 constants/roles，T19） */
+const isFullScope = computed(() => canManageAll(userStore.profile))
 
 const exporting = ref(false)
 

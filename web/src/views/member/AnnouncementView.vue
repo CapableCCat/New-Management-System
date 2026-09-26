@@ -13,6 +13,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getAnnouncementDetail, getAnnouncementList } from '@/api/announcement'
 import AnnouncementDetailDialog from '@/components/AnnouncementDetailDialog.vue'
+import { markAnnouncementRead } from '@/utils/announcementRead'
 
 const route = useRoute()
 
@@ -81,6 +82,8 @@ async function openFromQuery() {
 watch(() => route.query.open, openFromQuery)
 
 onMounted(async () => {
+  // 打开公告页即视为已读（右上角铃铛红点据此消除，见 utils/announcementRead）
+  markAnnouncementRead()
   await load()
   await openFromQuery()
 })
