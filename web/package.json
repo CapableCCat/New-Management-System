@@ -21,6 +21,7 @@
     "@wangeditor-next/editor-for-vue": "^6.4.2",
     "axios": "^1.20.0",
     "dompurify": "^3.4.15",
+    "echarts": "^6.1.0",
     "element-plus": "^2.14.6",
     "pinia": "^4.0.3",
     "vant": "^4.10.2",
