@@ -26,6 +26,7 @@
         <knife4j.version>4.5.0</knife4j.version>
         <easy-captcha.version>1.6.2</easy-captcha.version>
         <nashorn.version>15.7</nashorn.version>
+        <jsoup.version>1.21.2</jsoup.version>
     </properties>
 
     <dependencies>
@@ -93,6 +94,13 @@
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
             <version>8.5.12</version>
+        </dependency>
+
+        <!-- HTML 白名单清洗（T12 公告富文本 XSS，PRD F-008「存储前做 XSS 白名单清洗」） -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
         </dependency>
 
         <!-- 密码加密：只用 BCrypt 编码器，不引入 spring-security 的鉴权链 -->

@@ -82,11 +82,12 @@ public class GlobalExceptionHandler {
      * 上传文件超过 spring.servlet.multipart 限制。
      *
      * <p>不拦的话会冒成 500 系统异常，用户看到的是"系统繁忙"，无法判断是自己图片太大。
+     * （上传口有头像与公告配图两处，文案取通用的「图片」。）
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public Result<Void> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
         log.warn("上传文件超限：{}", e.getMessage());
-        return Result.fail(ResultCode.PARAM_ERROR, "头像大小不能超过 2MB");
+        return Result.fail(ResultCode.PARAM_ERROR, "图片大小不能超过 2MB");
     }
 
     /** 访问了不存在的接口/资源 */

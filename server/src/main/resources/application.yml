@@ -18,7 +18,7 @@ spring:
     problemdetails:
       enabled: false
   servlet:
-    # 头像上传上限（PRD F-007：jpg/png ≤2MB）；超限由 GlobalExceptionHandler 转成友好提示
+    # 上传上限（PRD F-007 头像 / F-008 公告配图：jpg/png ≤2MB）；超限由 GlobalExceptionHandler 转成友好提示
     multipart:
       max-file-size: 2MB
       max-request-size: 3MB
