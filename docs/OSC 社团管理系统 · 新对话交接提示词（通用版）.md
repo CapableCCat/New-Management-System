@@ -67,25 +67,19 @@
 
 **阶段：纳新主链完成（T1~T11）→ 支撑链完成（T12~T15）→ 信息架构调整（T18、T19 新插入）→ 收尾（T16、T17）**
 
-| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ T12 公告系统（富文本双重 XSS 清洗）/ T13 Excel 批量导入（FastExcel + 组件库文案中英文切换）/ T14 数据导出（RFC 5987 中文文件名） |
+| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ T12 公告系统（富文本双重 XSS 清洗）/ T13 Excel 批量导入（FastExcel + 组件库文案中英文切换）/ T14 数据导出（RFC 5987 中文文件名）/ **T15 基础看板**（双口径 + 省份归一化 + ECharts 按需 + 本地矢量中国地图含港澳台与九段线） |
 | ------------ | ------------------------------------------------------------ |
-| **已完成、未提交** | **T15 基础看板**（PRD F-010）：成员现状 + 招新复盘双口径、**生源地省份归一化**、ECharts 6 按需引入、**本地矢量中国地图（含港澳台 + 九段线，无 key、断网可用，合规自查通过）**、空态与地图降级。省份归一化 48 项 + 接口 42 项 + 页面 29 项全过 |
-| **下一步（按序）** | ① **先提交 T15**（等社长说「提交 T15」，按 server / web / docs 拆 commit）→ ② **T18 公开端报名链路梳理** → ③ **T19 内部导航与首页工作台** → ④ **T16 反馈入口** → ⑤ **T17 联调上线** |
+| **已完成、未提交** | **T18 公开端报名链路梳理**（PRD F-001 / F-005、v3.2）：公开三页平级互链、报名结果态双出口、查询页按状态给主操作、根路径按 `recruit_open` 动态落地、`POST /recruit/apply` 的两个引导分支改 `200 + nextAction`；**附带**报名页简介由 397 字长文精简为**一句话**（并同步「纳新设置」页提示）。接口 35 项 + 页面 39 项 + 纳新设置页 6 项全过 |
+| **下一步（按序）** | ① **先提交 T18**（等社长说「提交 T18」，按 server / web / docs 拆 commit）→ ② **T19 内部导航与首页工作台** → ③ **T16 反馈入口** → ④ **T17 联调上线** |
 
 > **⚠️ 为什么 T18/T19 插在 T16 前面**：社长在 T15 之后提了两点质疑 —— ①「管理系统首页不该展示公告，公告该由官网负责，最多右上角搞个通知」；
 > ②「不该分管理端/成员端，直接按后台给的权限看到自己能看的不就行了」。核对后都是真问题（详见《清单》T18/T19 条目与 §6 D106~D112），
 > 而且 T16（反馈入口）**同时要动首页与报名结果态** —— 先把信息架构理顺，T16 才不会返工两次。
 
-**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T18 公开端报名链路梳理」「T19 内部导航与首页工作台」条目（含完整交付物清单）。
+**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T19 内部导航与首页工作台」条目（含完整交付物清单）。
 **需求依据**：`docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md` 已订正为 **v3.2**（§8.2 页面地图改「场景 + 权限」两层模型、F-001/F-005 的入口与出海口径）。
 
-**T18 要点（公开端报名链路，小且独立，先做）**
-1. 公开三页**各自只有一个身份**、页与页**平级互链**：报名页/查询页底部「已有账号？去登录」；登录页底部「去报名 / 查审核进度」
-2. 报名页结果态（提交成功）两个出口：**去查询进度** / **已有账号？去登录**
-3. 查询页按状态给主操作：**已通过 → 「去登录」**（文案写清"用报名手机号 + 审核台发的初始密码"）；**已拒绝 → 「重新报名」**；**未找到 → 「去报名」**
-4. **公开端落地页按 `recruit_open` 动态决定**：报名开关打开 → 访问根路径进报名页；关闭 → 进登录页（社长已拍板，见 D110）
-5. **引导分支改结构化**：`POST /recruit/apply` 里"手机号已提交过报名 / 已是正式成员"这类分支改为 `200` + `data.nextAction`（`QUERY`/`LOGIN`），
-   前端就地渲染提示卡 + 按钮（社长已拍板，见 D111）。**代价：要同步改 T6 的接口用例与验证记录**
+**T18（已完成、待提交，要点不在此重复）**：交付物与实测记录见《清单》§4「T18 实现结果」，实现层决策见 §6 D109~D116。
 
 **T19 要点（内部导航与首页工作台，中等，其次做）**
 1. **菜单从路由表生成**（单一出处）：meta 声明 `{ group, label, order, capability }`，布局不再手写数组 → 菜单可见性与守卫判定共用同一份声明
@@ -95,14 +89,14 @@
 5. **右上角「公告」通知红点**：`localStorage` 记"上次查看时间"，不落库不加表
 6. **不做**：统一外壳（3 套 layout 合并成 1 套 AppShell）—— 架构级改动，V1.0 上线优先，已记 D112 待办
 
-**开工前必做（环境）**
-1. **MinIO 要起着**（头像/公告配图）：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`
-   ⚠️ 本机 shell 里起必须**显式带上 `MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin`**
-2. 后端无新依赖（T15 的 echarts 是前端的）；重启后端前按惯例**先在 IDEA 刷新 Maven**
-3. 前端依赖已装齐（echarts、编辑器、dompurify）
+**开工前必做（环境）** —— **完整清单与命令一律看「八、启动清单与常用命令」8.1**，这里只留三条要点：
+1. **MySQL / Redis 是 AUTO_START 服务**（开机自启，不用管）；**只有 MinIO 需要手动起**（🔧 详见 8.2）
+2. **分工约定（社长拍板）**：常驻服务（MinIO / 后端 / 前端）**由社长在会话外手动起**，
+   AI 不要用会话内后台任务起它们（原因见 §四 最后一条：后台任务结束会唤醒旧会话）；AI 自测只用隔离栈 8090 + 5180 且当轮收掉
+3. 后端本轮无新依赖；重启/构建前**先在 IDEA 刷新 Maven**、`mvn package` **不带 `clean`**
 
-**⚠️ 工作树约定（T15 之后）**：T15 的改动（server / web / docs，共 20 项）**全部还在工作树里，未 commit** ——
-提交时按功能拆多个 commit（建议：server 看板与归一化 / web 看板页面与图表 / docs 台账与交接），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
+**⚠️ 工作树约定（T18 之后）**：T18 的改动（server 3 项 / web 6 项 + 新增 `web/src/stores/recruit.js` / docs 2 份）**全部还在工作树里，未 commit** ——
+提交时按功能拆多个 commit（建议：server 引导分支 / web 公开端三页与落地页 / docs 台账），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
 
 **❓ 待用户定夺**
 1. 三处字典种子存疑项 —— 附件3「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
@@ -192,6 +186,31 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 - ⚠️ **Element Plus 2.14 的细节**：下拉禁用态不在根 `.el-select` 上（查内层 `input[disabled]`）；
   `el-dialog` 是 fixed 定位，**溢出量不出来**（要量 `getBoundingClientRect()`，T9/T10 踩过）。
   更完整的踩坑清单在 `.workbuddy/memory/MEMORY.md`。
+- ⚠️ **`npm run build` 可能失败在「清空 dist」这一步，而不是代码**（T18 实测）：报
+  `[plugin vite:prepare-out-dir] Error: [safe-delete] 操作失败: spawnSync ... ETIMEDOUT` ——
+  沙箱的 safe-delete 垫片清目录超时。**先 `rm -rf web/dist` 再 `npm run build`** 就绕开了（`dist/` 已被 `.gitignore` 忽略，删产物无风险）。
+- ⚠️ **自写的极简 RESP 客户端要等「回复完整」再 resolve**（T18 实测）：按第一个数据包就 resolve 会把 `KEYS` 这类多值回复**截断成空数组** ——
+  Redis 里明明有 8 个 `osc:captcha:*`，读成 `[]`，于是误判成"页面没取验证码"，排查了好一阵。
+  改成「最后一次收到数据后再等 250ms 才收结果」（`lib.cjs` 的 `redisGet` 只读单值，所以没暴露过这个问题）。
+
+### 会话被「唤醒」的原因与解决办法（2026-09-26 查清）
+
+**现象**：社长停手一段时间后，**旧对话会突然又冒出一段回复**（他开新对话比较频繁，这现象尤其明显）。
+
+**原因（本会话实测，非推断）**：AI 用 `run_in_background` 起的命令会被登记成一个「任务」，宿主盯着它；
+**任务一结束就往该会话注入一条 `<task-notification>`** → 会话把它当**新输入** → 重新激活、AI 开口说话。
+- **每个后台任务结束 = 一次潜在唤醒机会**（本会话起过 8 个后台任务 = 8 次机会）
+- **活得越久的任务越烦人**：后端 / 预览站跑了 1~2.7 小时，在社长早已停手之后才结束 —— 那一刻才来敲门
+- ⚠️ **「任务结束」≠「进程结束」**：通知报 failed，但 java / node 进程**仍在监听 8090 / 5180 并响应 200** ——
+  包装器与子进程的生命周期是解耦的，**这正是"后台进程去留不确定"的机制根源**
+
+**解决办法（本项目约定）**：
+1. **常驻服务在会话外起**：MySQL / Redis 是 AUTO_START 服务（不用管）；**MinIO + 后端 + 前端由社长手动起**
+   （IDEA / 独立窗口 / 服务），**不要交给 AI 的会话内后台任务** —— 既不占会话、也不产生通知（详见 §八 8.1 分工约定）
+2. **AI 的验证栈在同一轮内收掉**：自测完就停掉 8090 / 5180，别留到会话结束（下一轮反正要重新构建）
+3. **开新对话前先让 AI 清掉本会话的后台任务**：任务处于已结束态就不会再有通知，进程也一并收掉
+4. 万一旧会话还是被唤醒：**不用管**（它只会回一句），要根除就在任务列表里结束那个会话
+5. 判断服务死活**别只看 `netstat`**（不同工具调用的沙箱隔离会导致结果不一致，我们据此误报过一次）→ **打一次接口最可靠**
 
 ### 绝对不要做的事
 
@@ -281,36 +300,74 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 字典索引（跨任务共用） | `util/DictIndex`：`labelToCode()` 只认启用项（导入用）、`codeToLabel()` 含停用项（展示/导出/看板用） |
 | 页面地图两层模型       | **场景层**（公开 / 内部，决定外壳）+ **权限层**（决定功能可见性），两层正交 —— PRD §8.2 v3.2；不要再用"管理端/成员端"描述功能归属（见 §6 D106） |
 | 公开端三页互链         | 登录页 / 报名页（含提交成功**结果态**）/ 查询页 —— 各自只有一个身份、平级互链、不出现登录后元素（T18 / D109） |
+| 报名提交结果           | `RecruitSubmitVO` = `state`（`SUBMITTED`/`RESUBMITTED`/`ALREADY_PENDING`/`ALREADY_MEMBER`）+ `nextAction`（`QUERY`/`LOGIN`）+ `message`；后两种是**引导不是错误**，一律 `200`（T18 / D111 / D113） |
+| 公开端落地页与配置缓存 | 路由表不写死 `/` 落点，由 `router/guard.js` 按 `recruit_open` 判定；配置走 `web/src/stores/recruit.js` 会话级缓存（T18 / D110 / D114 / D115） |
 | 首页定位               | **工作台**（按角色的待办 + 入口），**不是**内容门面；公告走「公告」菜单 + 右上角通知红点（T19 / D107） |
 | 菜单与权限单一出处     | 菜单**从路由表生成**（meta 声明 `{group,label,order,capability}`），与守卫判定共用同一份声明（T19 / D108） |
 
 ---
 
-## 八、常用命令速查
+## 八、启动清单与常用命令
+
+### 8.1 项目启动清单（按顺序；✅ 常驻不用管 / 🔧 每次要手动起）
+
+| # | 组件 | 是否常驻 | 启动方式 | 探活 |
+|---|---|---|---|---|
+| 1 | MySQL 8（库 `osc`，:3306） | ✅ **Windows 服务 `MySQL80`，AUTO_START**（开机自启） | （万一没起）管理员执行 `net start MySQL80` | `mysql.exe --user=root --password=root --skip-column-names "--execute=SELECT 'UP';"` → `UP` |
+| 2 | Redis（3.0.504，:6379） | ✅ **Windows 服务 `Redis`，AUTO_START** | （万一没起）`net start Redis` | `& "C:\Program Files\Redis\redis-cli.exe" -h 127.0.0.1 -p 6379 PING` → `PONG` |
+| 3 | **MinIO**（头像 / 公告配图，T11 起必需，:9000） | 🔧 **没有注册成服务，必须手动起** | 见 8.2 | `curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/minio/health/live` → `200` |
+| 4 | 后端（dev :8080） | 🔧 手动（社长用 IDEA；AI 用隔离栈） | 见 8.3 | `Invoke-RestMethod http://127.0.0.1:8080/health` → `code:200` |
+| 5 | 前端（dev :5173） | 🔧 手动 `npm run dev` | 见 8.4 | 浏览器开 http://127.0.0.1:5173 |
+
+> ⚠️ **分工约定（2026-09-26 社长拍板）**：**常驻服务一律由社长在会话外启动**（IDEA / 独立 cmd 窗口 / Windows 服务），
+> **不要交给 AI 的会话内后台任务** —— 原因见「四、环境与坑」最后一条（后台任务一结束就会唤醒旧会话）。
+> AI 只在交付自测时起**隔离栈**（后端 **8090** + 预览站 **5180**），并在同一轮内收掉。
+> 社长只需管两件事：**MinIO（🔧）+ 后端 + 前端**；MySQL / Redis 是服务，重启电脑后自己在跑。
+
+### 8.2 MinIO（唯一需要手动起的依赖）
 
 ```powershell
-# ── 依赖服务 ──
-# MySQL：本机服务（127.0.0.1:3306，库 osc）
-# Redis：
-& "C:\Program Files\Redis\redis-server.exe"        # 若未作为服务常驻
-# MinIO（T11 起需要）：
+# 必须在同一行里显式给凭据，否则会报 "Unable to validate credentials inherited from the shell environment"
 & "E:\Minio\minio\minio.exe" server E:\Minio\osc-data --address :9000 --console-address :9001
+```
+- 凭据默认 `minioadmin / minioadmin`；桶 `osc` 由**应用启动时自动创建**并设公开读，不用手动建
+- ⚠️ **别用 `| head` 之类的管道起它**（管道一关进程就被带走）——直接前台跑，或重定向到日志文件
 
-# ── 后端（在 server/ 目录下执行）──
+### 8.3 后端（在 `server/` 目录下执行）
+
+```powershell
+# ⚠️ 必须先清宿主注入的变量，否则 Spring 宽松绑定会拿 SERVER__PORT 去抢端口
 Remove-Item env:SERVER__PORT -ErrorAction SilentlyContinue
 Remove-Item env:SERVER__HOST -ErrorAction SilentlyContinue
-& "E:\MAVEN\apache-maven-3.6.3\bin\mvn.cmd" clean package -DskipTests
-& "C:\Program Files\Java\jdk-17\bin\java.exe" -jar "target\osc-server-1.0.0.jar"
+# ⚠️ 不要带 clean（会删掉 IDEA 正在用的 target/classes）；改了 pom 先在 IDEA 刷新 Maven
+& "E:\MAVEN\apache-maven-3.6.3\bin\mvn.cmd" package -DskipTests
+& "C:\Program Files\Java\jdk-17\bin\java.exe" -jar "target\osc-server-1.0.0.jar"     # dev 8080
+```
+> 社长日常用 **IDEA 直接启动**（classpath 是 `target/classes`，改完代码重启即生效）；上面这套是"不想开 IDEA 时"的写法。
+> AI 自测时用 `--server.port=8090` 起隔离栈，不碰 8080。
 
-# ── 前端（在 web/ 目录下执行）──
-npm run dev        # http://127.0.0.1:5173
+### 8.4 前端（在 `web/` 目录下执行）
+
+```powershell
+npm run dev        # http://127.0.0.1:5173（/api 代理到 8080 并剥前缀）
 npm run lint
 npm run build
+```
 
-# ── 探活 ──
-Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -Method Get | ConvertTo-Json -Depth 6
+### 8.5 探活一条龙（新会话开工先跑这个）
 
-# ── 数据库（root 建表 / 查数据）──
+```powershell
+curl.exe -s -o NUL -w "minio 9000: %{http_code}`n" --noproxy 127.0.0.1 http://127.0.0.1:9000/minio/health/live
+& "C:\Program Files\Redis\redis-cli.exe" -h 127.0.0.1 -p 6379 PING
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --user=root --password=root --skip-column-names "--execute=SELECT 'mysql UP';"
+curl.exe -s -o NUL -w "backend 8080: %{http_code}`n" --noproxy 127.0.0.1 http://127.0.0.1:8080/health
+```
+> ⚠️ **判断服务死活别只看 `netstat`**（不同工具调用的沙箱隔离会导致结果不一致，我们据此误报过一次）；
+> **打一次接口**最可靠 —— MySQL / Redis 不是 HTTP 服务，用上面各自的客户端探。
+
+### 8.6 数据库（root 建表 / 查数据）
+
+```powershell
 $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 & $mysql --user=root --password=root --default-character-set=utf8mb4 --table `
   "--execute=USE osc; SELECT type, code, label, enabled FROM sys_dict ORDER BY type, sort;"
