@@ -35,11 +35,17 @@ public class RecruitController {
         return Result.ok(sysConfigService.recruitInfo());
     }
 
-    /** 提交报名（需图形验证码，验证码一次性作废） */
+    /**
+     * 提交报名（需图形验证码，验证码一次性作废）。
+     *
+     * <p>四种结果都走 {@code 200}：新提交 / 被拒后重提是成功；「该手机号已提交过报名」
+     * 「该手机号已是正式成员」是**引导**（不是错误，见清单 §6 D111）——
+     * 前端按 {@code data.nextAction} 就地渲染按钮，不再弹红色报错。
+     */
     @PostMapping("/apply")
     public Result<RecruitSubmitVO> apply(@Valid @RequestBody RecruitApplyRequest request) {
         RecruitSubmitVO result = recruitService.submit(request);
-        return Result.ok(result, result.resubmitted() ? "已重新提交，请留意审核结果" : "报名提交成功");
+        return Result.ok(result, result.message());
     }
 
     /**

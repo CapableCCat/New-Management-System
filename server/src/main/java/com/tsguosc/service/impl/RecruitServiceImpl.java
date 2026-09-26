@@ -30,7 +30,11 @@ import java.util.Objects;
 /**
  * 公开报名实现。
  *
- * <p>顺序：验证码（一次性）→ 报名开关 → 字典编码合法性 → 专业「其他」手填校验 → 手机号三分支。
+ * <p>顺序：验证码（一次性）→ 报名开关 → 字典编码合法性 → 专业「其他」手填校验 → 手机号四种结果
+ * （新提交 / 被拒后重提 / 仍在待审 / 已是成员）。
+ *
+ * <p>后两种**不是错误、只是要引导**（清单 §6 D111）：返回带 {@code state} / {@code nextAction}
+ * 的结果对象而非抛异常，前端据此就地渲染提示卡与按钮。
  */
 @Slf4j
 @Service
@@ -105,16 +109,30 @@ public class RecruitServiceImpl implements RecruitService {
             entity.setStatus(RecruitApply.STATUS_PENDING);
             recruitApplyMapper.insert(entity);
             log.info("收到新报名：phone={}, college={}, major={}", phone, college, major);
-            return new RecruitSubmitVO(phone, entity.getCreatedAt() == null ? now : entity.getCreatedAt(), false);
+            return new RecruitSubmitVO(phone,
+                    entity.getCreatedAt() == null ? now : entity.getCreatedAt(),
+                    RecruitSubmitVO.STATE_SUBMITTED,
+                    RecruitSubmitVO.NEXT_QUERY,
+                    "报名提交成功");
         }
 
+        // 4.5 下面两个分支「不是错误、只是要引导」（见清单 §6 D111）：
+        //     一律返回 200 + nextAction，前端就地渲染提示卡与按钮，不再弹红色报错。
         if (Objects.equals(existing.getStatus(), RecruitApply.STATUS_PENDING)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR,
+            log.info("重复报名（仍在待审）：phone={}, applyId={}", phone, existing.getId());
+            return new RecruitSubmitVO(phone,
+                    existing.getCreatedAt(),
+                    RecruitSubmitVO.STATE_ALREADY_PENDING,
+                    RecruitSubmitVO.NEXT_QUERY,
                     "该手机号已提交过报名，可在「查询审核状态」页查看进度");
         }
         if (Objects.equals(existing.getStatus(), RecruitApply.STATUS_APPROVED)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR,
-                    "该手机号已通过审核，请直接登录系统；如需修改信息请到个人中心");
+            log.info("重复报名（已是正式成员）：phone={}, applyId={}", phone, existing.getId());
+            return new RecruitSubmitVO(phone,
+                    existing.getCreatedAt(),
+                    RecruitSubmitVO.STATE_ALREADY_MEMBER,
+                    RecruitSubmitVO.NEXT_LOGIN,
+                    "该手机号已是正式成员，请直接登录；如需修改信息请到个人中心");
         }
 
         // 5. 被拒后重新提交：覆盖表单内容 + 状态重置为待审 + 清空上一次审核留痕
@@ -144,7 +162,10 @@ public class RecruitServiceImpl implements RecruitService {
                 .set(RecruitApply::getReviewedAt, null));
 
         log.info("被拒后重新提交：phone={}, applyId={}", phone, existing.getId());
-        return new RecruitSubmitVO(phone, now, true);
+        return new RecruitSubmitVO(phone, now,
+                RecruitSubmitVO.STATE_RESUBMITTED,
+                RecruitSubmitVO.NEXT_QUERY,
+                "已重新提交，请留意审核结果");
     }
 
     @Override
