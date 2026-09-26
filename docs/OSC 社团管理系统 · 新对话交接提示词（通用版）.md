@@ -41,7 +41,7 @@
 - **端口**：后端 dev 8080 / prod 8081；前端 dev 5173（`/api` 代理到 8080 并剥前缀）
 - **定位**：社团数字档案馆（飞书管今天、OSC 管昨天和明天），V1.0 明示不做 IM / 资产台账 / AI / 官网
 - **范围**：14 个 Must 切片 = 12 核心 + F-013 数据导出 + F-014 反馈入口
-- **当前状态**：T1~T12 已提交推送；**T13 Excel 批量导入已完成、待提交**（另含"组件库内置文案中英文切换"）；下一个是 **T14 数据导出**
+- **当前状态**：T1~T13 已提交推送；**T14 数据导出已完成、待提交**；下一个是 **T15 基础看板**
 
 ---
 
@@ -64,34 +64,36 @@
 
 > **本节是「本轮做什么」的唯一出处**，每次交接由 AI 更新。
 
-**阶段：纳新主链完成（T1~T11）→ 支撑链过半（T12、T13 已完成，T14~T17 待做）**
+**阶段：纳新主链完成（T1~T11）→ 支撑链过半（T12、T13、T14 已完成，T15~T17 待做）**
 
-| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ **T12 公告系统**（富文本前后端双重 XSS 清洗 + 公告配图） |
+| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ T12 公告系统（富文本双重 XSS 清洗）/ T13 Excel 批量导入（首次启用 FastExcel + 组件库文案中英文切换） |
 | ------------ | ------------------------------------------------------------ |
-| **已完成、未提交** | **T13 Excel 批量导入**（PRD F-009）：模板下载（含"填写说明"sheet）、上传逐行校验并建号、错误行清单（行号+原因）、一次性密码清单；首次启用 **FastExcel**（EasyExcel 官方续作）。另含**组件库内置文案中英文切换**（D94，顺手解决 T12 记录的英文确认框问题）与 `utils/csv.js` / `utils/download.js` 两个公共工具。接口 57 项 + 页面 34 项 + T12 回归 48 项全过 |
-| 下一个       | **T14 数据导出**（PRD F-013、切片 13）—— **开工前必须先提交 T13**（等社长说「提交 T13」） |
-| 后续         | T15 基础看板 → T16 反馈入口 → T17 全链路联调上线 |
+| **已完成、未提交** | **T14 数据导出**（PRD F-013）：成员名册按筛选条件导出、报名/审核数据全量导出（含拒绝原因/审核人/审核时间等留痕）、**中文文件名按 RFC 5987**、导出按钮按社长团资格显示。接口 27 项 + 页面 23 项全过，导出文件另用 `ExportReader` 读回来逐行核对 |
+| 下一个       | **T15 基础看板**（PRD F-010、切片 10）—— **开工前必须先提交 T14**（等社长说「提交 T14」） |
+| 后续         | T16 反馈入口 → T17 全链路联调上线 |
 
-**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T13 Excel 批量导入」条目（含技术方案与验证记录）。
+**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T14 数据导出」条目（含技术方案与验证记录）。
 
-**T14 要点（从清单摘出）**：
-- 成员名册导出（按筛选条件）；报名/审核数据导出（含留痕）；**文件名含日期**；导出列按权限控制
-- 自测要点：导出文件可打开、内容与列表一致；敏感列不含无权限字段
-- 权限口径记得对 PRD 权限矩阵：**数据导出 = 社长团 / 超管**（部长没有）
-- 实现上大概率复用 T13 引入的 FastExcel 写 Excel；CSV 已有公共工具 `utils/csv.js`
+**T15 要点（从清单摘出）**：
+- **两类数据源别混用**（PRD 明确口径）：① 成员现状 = `user` 表**仅 status 正常**（总人数 / 学院 / 专业 / 性别 / 地区分布）；② 招新复盘 = `recruit_apply` **全量**（报名总数 / 通过 / 拒绝 / 按日趋势）
+- 地区分布要**中国地图热力且含港澳台** → 注意用标准地图数据；老系统那份 `china.json` **没有港澳台映射**，不能直接搬
+- 空态处理：无数据时给空态提示，不画空白图表
+- 权限：看板 = 全员可见（成员也能看）
+- 前端图表库本项目**还没引入**（T3 时未装 ECharts）→ 这是个技术选型点，需要先出方案让社长拍板
 
-**T14 开工前必做（环境）**：
+**T15 开工前必做（环境）**：
 1. **MinIO 必须先起着**（公告/头像要用）：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`
    ⚠️ 在本机 shell 里起必须**显式带上 `MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin`**，否则报 `Unable to validate credentials inherited from the shell environment`
-2. **后端重启前先在 IDEA 里刷新 Maven**：T12 加了 `org.jsoup:jsoup`、T13 加了 `cn.idev.excel:fastexcel`，不刷新会 `NoClassDefFoundError`
-3. 前端依赖已装齐（`@wangeditor-next/editor`、`editor-for-vue`、`dompurify`），无需再 `npm install`
+2. **后端重启前先在 IDEA 里刷新 Maven**（T12 的 jsoup、T13 的 fastexcel、T15 若引图表/地图依赖同理）
+3. 前端依赖已装齐（编辑器 + dompurify），无需再 `npm install`
 
-**⚠️ 工作树约定（T13 之后）**：T13 的改动（server / web / docs）**全部还在工作树里，未 commit** —— 提交时按功能拆多个 commit（建议：server Excel 导入、web 导入页 + 语言切换、docs 台账与交接），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
+**⚠️ 工作树约定（T14 之后）**：T14 的改动（server / web / docs）**全部还在工作树里，未 commit** —— 提交时按功能拆多个 commit（建议：server 导出模块、web 两个导出入口、docs 台账与交接），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
 
 **❓ 待用户定夺**：
 1. 三处字典种子存疑项 —— 附件3 的「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
-2. 公告图片与导入页面产生的对象存储文件**都不做孤儿清理**（D86）—— 如需回收可另开任务点。
+2. 公告配图与导入过程中产生的对象存储文件**都不做孤儿清理**（D86）—— 如需回收可另开任务点。
 3. 语言切换当前**只覆盖组件库内置文案**（页面自写文案仍是中文，见 D94）—— 若要做整站 i18n，需要单独立项。
+4. 导出**不做列裁剪**（D96）：导出权限本身已限社长团/超管，所以手机号/学号都能导；哪天要给部长导出，得按 `UserVO.masked()` 的口径去列。
 
 ---
 
@@ -152,6 +154,9 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
   这样验的是页面接线本身，与环境无关（T13 实证）。
 - ✅ **无头浏览器里验证「文件上传」**：CDP `DOM.getDocument` + `DOM.querySelector('input[type=file]')`
   拿到 nodeId，再用 `DOM.setFileInputFiles` 塞真实文件路径（会触发 change → 组件的 on-change）✓
+- ⚠️ **导出/下载类接口不能只看"接口返回 200"就算过**：必须把文件**读回来核对**（列头、中文标签、
+  筛选是否生效、留痕字段是否齐全）。T14 的做法：Java 写个 `ExportReader` 用 FastExcel 读回 xlsx
+  打印列头与每行内容，再由 bash / 断言核对。只看 200 会漏掉"导出成空表""code 没转中文"这类问题。
 - ⚠️ **启动命令必须在 `server/` 目录下执行**，否则读不到 `.env`（`spring.config.import` 用相对路径）。
 - ⚠️ **配置值不要经 mysql 批处理往返**：mysql 批处理会把真实换行输出成字面量 `\n`（T6 踩过，简介里出现反斜杠-n）。
   读中文多行值走接口或加 `--raw`。
@@ -243,6 +248,8 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | Excel 库               | `cn.idev.excel:fastexcel` 1.3.0（EasyExcel 官方续作，包名 `cn.idev.excel`）；列头常量在 `dto/ImportRow` |
 | 组件库语言切换         | `stores/locale.js` + `App.vue` 的 `<el-config-provider>`（Vant 走 `Locale.use()`）；切换入口 `components/LocaleSwitch.vue`，偏好存 `localStorage.osc_locale`；**只覆盖组件库内置文案**（见 §6 D94） |
 | CSV / 文件下载工具     | `utils/csv.js`（buildCsv / downloadCsv / today）、`utils/download.js`（saveBlob / readBlobMessage） |
+| 数据导出               | 接口 `/member/admin/export`（按筛选）、`/recruit/admin/export`（全量）；**权限=社长团/超管**（方法级注解叠加类级）；服务 `service/ExportService(+Impl)`；Excel 写出工具 `util/ExcelExporter`（含 RFC 5987 中文文件名）；列头常量在 `dto/MemberExportRow` / `RecruitExportRow` |
+| Excel 写出             | 统一走 `util/ExcelExporter.toXlsx(sheetName, headClass, rows)` + `writeToResponse(...)`（别自己拼响应头，中文文件名很容易写错） |
 
 ---
 
