@@ -11,7 +11,8 @@ export const TOKEN_HEADER = 'osc-token'
 /** 本地存储 key */
 export const STORAGE_KEY = {
   TOKEN: 'osc_token',
-  PROFILE: 'osc_profile'
+  PROFILE: 'osc_profile',
+  LOCALE: 'osc_locale'
 }
 
 /** 路由 path */

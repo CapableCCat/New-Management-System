@@ -5,6 +5,7 @@ import { ElMessageBox } from 'element-plus'
 import { APP_NAME, ROUTE_PATH } from '@/constants/app'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { useUserStore } from '@/stores/user'
+import LocaleSwitch from '@/components/LocaleSwitch.vue'
 
 const isMobile = useIsMobile()
 const route = useRoute()
@@ -50,6 +51,7 @@ async function handleLogout() {
       </nav>
       <div class="member-actions">
         <span class="member-user">{{ userStore.profile?.name || '未登录' }}</span>
+        <LocaleSwitch />
         <el-button text size="small" @click="handleLogout">退出</el-button>
       </div>
     </header>

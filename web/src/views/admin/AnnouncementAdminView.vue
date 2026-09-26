@@ -142,16 +142,12 @@ async function submit() {
 
 async function remove(row) {
   try {
+    // 按钮文案交给组件库的 locale（中文环境显示「确定 / 取消」，英文环境显示「OK / Cancel」），
+    // 不再写死中文 —— 全局已配 ElConfigProvider，见 stores/locale.js
     await ElMessageBox.confirm(
       `确定删除公告「${row.title}」吗？删除后成员端将不再可见。`,
       '提示',
-      {
-        type: 'warning',
-        // 显式给按钮文案：Element Plus 的内置文案默认是英文（全局未配 zh-cn locale），
-        // 不写死在页面上的话，删除确认框会出现「OK / Cancel」（见 §6 D85）
-        confirmButtonText: '删除',
-        cancelButtonText: '取消'
-      }
+      { type: 'warning' }
     )
   } catch {
     return

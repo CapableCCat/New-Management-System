@@ -1,5 +1,6 @@
 <script setup>
 import { APP_FULL_NAME, APP_NAME } from '@/constants/app'
+import LocaleSwitch from '@/components/LocaleSwitch.vue'
 </script>
 
 <template>
@@ -7,6 +8,7 @@ import { APP_FULL_NAME, APP_NAME } from '@/constants/app'
     <header class="public-header">
       <span class="public-brand">{{ APP_NAME }}</span>
       <span class="public-sub">社团管理系统</span>
+      <LocaleSwitch class="public-locale" />
     </header>
 
     <main class="public-main">
@@ -42,6 +44,10 @@ import { APP_FULL_NAME, APP_NAME } from '@/constants/app'
 .public-sub {
   font-size: 12px;
   color: #909399;
+}
+
+.public-locale {
+  margin-left: auto;
 }
 
 .public-main {
