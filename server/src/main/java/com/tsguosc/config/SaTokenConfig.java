@@ -48,6 +48,9 @@ public class SaTokenConfig implements WebMvcConfigurer {
             "/dict/*",
             // 公开报名：/recruit/info 与 /recruit/apply（两段路径），提交时仍需图形验证码
             "/recruit/*",
+            // 轻量反馈：/feedback/submit（两段路径）—— 新生在报名结果态可能还没账号，故免登录，
+            // 提交时同样必须带一次性图形验证码；/feedback/admin/** 是三段，不在白名单内
+            "/feedback/*",
             // dev 接口文档（prod 下 knife4j/springdoc 已整体关闭）
             "/doc.html",
             "/webjars/**",
