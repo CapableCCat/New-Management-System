@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import {
   approveApply,
   approveApplyBatch,
+  exportRecruitApplies,
   getApplyList,
   getApplyStats,
   getSmsConfig,
@@ -14,6 +15,7 @@ import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { copyText } from '@/utils/sms'
 import { downloadCsv as downloadCsvFile, today } from '@/utils/csv'
+import { readBlobMessage, saveBlob } from '@/utils/download'
 import SmsNotifyDialog from '@/components/SmsNotifyDialog.vue'
 
 /**
@@ -54,6 +56,32 @@ const query = reactive({
 
 /** 社长团 / 超管 = 全量范围；部长 = 本部门范围 */
 const isFullScope = computed(() => userStore.isSuperAdminUser || userStore.canManageAllUsers)
+
+const exporting = ref(false)
+
+/**
+ * 导出报名/审核数据（PRD F-013）
+ *
+ * 按 PRD 是 `recruit_apply` **全量**（不分状态，也不跟随当前筛选），因为这份是给存档与复盘用的；
+ * 权限也只有社长团 / 超管（部长看不到这个按钮，直接调接口会 40300）。
+ */
+async function exportApplies() {
+  exporting.value = true
+  try {
+    const blob = await exportRecruitApplies()
+    const message = await readBlobMessage(blob)
+    if (message) {
+      ElMessage.error(message)
+      return
+    }
+    saveBlob(blob, `报名数据_${today().replace(/-/g, '')}.xlsx`)
+    ElMessage.success('已导出报名数据')
+  } catch {
+    // 提示由 axios 拦截器统一处理
+  } finally {
+    exporting.value = false
+  }
+}
 
 const approveVisible = ref(false)
 const approveMode = ref('single')
@@ -376,6 +404,14 @@ onMounted(async () => {
         </el-button>
         <el-button :disabled="!selectedDone.length" @click="openBatchSms">
           批量发送短信{{ selectedDone.length ? `(${selectedDone.length})` : '' }}
+        </el-button>
+        <el-button
+          v-if="isFullScope"
+          :loading="exporting"
+          title="导出全部报名/审核数据（报名数据_日期.xlsx，含审核留痕）"
+          @click="exportApplies"
+        >
+          导出报名数据
         </el-button>
         <el-button @click="reloadAll">刷新</el-button>
       </div>

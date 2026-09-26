@@ -1,11 +1,13 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getMemberDetail, getMemberList, updateMember } from '@/api/member'
+import { getMemberDetail, getMemberList, updateMember, exportMembers } from '@/api/member'
 import { useDictStore } from '@/stores/dict'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { canManageAll, canManageDepartment } from '@/constants/roles'
+import { readBlobMessage, saveBlob } from '@/utils/download'
+import { today } from '@/utils/csv'
 import MemberDetailDrawer from '@/components/MemberDetailDrawer.vue'
 
 /**
@@ -23,6 +25,7 @@ const dictStore = useDictStore()
 const userStore = useUserStore()
 
 const loading = ref(false)
+const exporting = ref(false)
 const list = ref([])
 const total = ref(0)
 
@@ -112,27 +115,57 @@ function canEdit(row) {
 async function load() {
   loading.value = true
   try {
-    const params = { page: query.page, size: query.size }
-    if (query.keyword.trim()) {
-      params.keyword = query.keyword.trim()
-    }
-    if (query.college) {
-      params.college = query.college
-    }
-    if (query.department !== '') {
-      params.department = query.department
-    }
-    if (query.duty !== '') {
-      params.duty = query.duty
-    }
-    if (query.status !== '') {
-      params.status = query.status
-    }
-    const data = await getMemberList(params)
+    const data = await getMemberList({ ...buildFilters(), page: query.page, size: query.size })
     list.value = data.records || []
     total.value = data.total || 0
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * 当前筛选条件（列表与导出共用）
+ *
+ * 抽出来是有意的：PRD F-013 要求「导出内容与当前筛选条件一致」，
+ * 两处各写一份迟早会漂 —— 导出多一列条件或少一列条件，用户是看不出来的。
+ */
+function buildFilters() {
+  const filters = {}
+  if (query.keyword.trim()) {
+    filters.keyword = query.keyword.trim()
+  }
+  if (query.college) {
+    filters.college = query.college
+  }
+  if (query.department !== '') {
+    filters.department = query.department
+  }
+  if (query.duty !== '') {
+    filters.duty = query.duty
+  }
+  if (query.status !== '') {
+    filters.status = query.status
+  }
+  return filters
+}
+
+/** 导出成员名册（PRD F-013，仅超管 / 社长团可见此按钮） */
+async function exportRoster() {
+  exporting.value = true
+  try {
+    const blob = await exportMembers(buildFilters())
+    // 下载类接口出错时拿到的是「装着 JSON 的 blob」，得先识别出来，别让用户存下一个假 xlsx
+    const message = await readBlobMessage(blob)
+    if (message) {
+      ElMessage.error(message)
+      return
+    }
+    saveBlob(blob, `成员名册_${today().replace(/-/g, '')}.xlsx`)
+    ElMessage.success('已导出成员名册')
+  } catch {
+    // 提示由 axios 拦截器统一处理
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -268,6 +301,14 @@ onMounted(async () => {
         </p>
       </div>
       <div class="member-admin__head-actions">
+        <el-button
+          v-if="canFullEdit"
+          :loading="exporting"
+          title="按当前筛选条件导出 Excel（成员名册_日期.xlsx）"
+          @click="exportRoster"
+        >
+          导出名册
+        </el-button>
         <el-button @click="load">刷新</el-button>
       </div>
     </div>

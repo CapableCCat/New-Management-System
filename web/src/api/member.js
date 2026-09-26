@@ -26,3 +26,11 @@ export const importMembers = (file) => {
   form.append('file', file)
   return request.post('/member/admin/import', form)
 }
+
+/**
+ * 导出成员名册（PRD F-013，仅超管 / 社长团）
+ *
+ * 参数与列表同一套筛选条件（即「按当前筛选条件导出」）；返回二进制 Blob，
+ * 交给 utils/download 的 saveBlob 保存、readBlobMessage 识别其中的错误体
+ */
+export const exportMembers = (params) => request.get('/member/admin/export', { params, responseType: 'blob' })

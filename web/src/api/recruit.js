@@ -30,3 +30,10 @@ export const rejectApply = (data) => request.post('/recruit/admin/reject', data)
 
 /** 短信通知提效工具所需配置（系统链接 + 两个短信模板，审核台角色只读） */
 export const getSmsConfig = () => request.get('/recruit/admin/sms-config')
+
+/**
+ * 导出报名/审核数据（PRD F-013，仅超管 / 社长团）
+ *
+ * `recruit_apply` 全量、含审核留痕；返回二进制 Blob，交给 utils/download 的 saveBlob 保存
+ */
+export const exportRecruitApplies = () => request.get('/recruit/admin/export', { responseType: 'blob' })
