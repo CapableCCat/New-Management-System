@@ -27,6 +27,7 @@
         <easy-captcha.version>1.6.2</easy-captcha.version>
         <nashorn.version>15.7</nashorn.version>
         <jsoup.version>1.21.2</jsoup.version>
+        <fastexcel.version>1.3.0</fastexcel.version>
     </properties>
 
     <dependencies>
@@ -101,6 +102,15 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>${jsoup.version}</version>
+        </dependency>
+
+        <!-- Excel 读写（T13 批量导入，PRD F-009）。
+             用 FastExcel：它是 EasyExcel 的官方续作（原项目已停维护，旧系统用的是 easyexcel 3.3.2），
+             API 与 EasyExcel 基本一致，包名从 com.alibaba.excel 换成 cn.idev.excel。 -->
+        <dependency>
+            <groupId>cn.idev.excel</groupId>
+            <artifactId>fastexcel</artifactId>
+            <version>${fastexcel.version}</version>
         </dependency>
 
         <!-- 密码加密：只用 BCrypt 编码器，不引入 spring-security 的鉴权链 -->

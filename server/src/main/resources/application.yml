@@ -18,10 +18,11 @@ spring:
     problemdetails:
       enabled: false
   servlet:
-    # 上传上限（PRD F-007 头像 / F-008 公告配图：jpg/png ≤2MB）；超限由 GlobalExceptionHandler 转成友好提示
+    # 上传上限：取所有上传场景里的最大者（T13 Excel 导入），图片另有各自的业务校验
+    # （头像 / 公告配图 ≤2MB，见 ImageValidator）—— 业务校验的文案更精确，这里只做兜底闸门
     multipart:
-      max-file-size: 2MB
-      max-request-size: 3MB
+      max-file-size: 10MB
+      max-request-size: 12MB
 
 server:
   servlet:

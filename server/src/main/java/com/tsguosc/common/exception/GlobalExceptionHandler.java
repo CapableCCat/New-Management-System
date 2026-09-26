@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -71,6 +72,17 @@ public class GlobalExceptionHandler {
         return Result.fail(ResultCode.PARAM_ERROR);
     }
 
+    /**
+     * 上传时缺少文件部件（如「未选文件直接提交」）。
+     *
+     * <p>不单独处理的话会落到兜底分支变成 50000「系统繁忙」，用户不知道自己少选了个文件。
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public Result<Void> handleMissingPart(MissingServletRequestPartException e) {
+        log.warn("缺少上传部件：{}", e.getRequestPartName());
+        return Result.fail(ResultCode.PARAM_ERROR, "请选择要上传的文件");
+    }
+
     /** 请求方式不被支持 */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
@@ -81,13 +93,13 @@ public class GlobalExceptionHandler {
     /**
      * 上传文件超过 spring.servlet.multipart 限制。
      *
-     * <p>不拦的话会冒成 500 系统异常，用户看到的是"系统繁忙"，无法判断是自己图片太大。
-     * （上传口有头像与公告配图两处，文案取通用的「图片」。）
+     * <p>不拦的话会冒成 500 系统异常，用户看到的是"系统繁忙"，无法判断是自己文件太大。
+     * 这里只说通用上限：图片另有 2MB 的业务校验（文案更精确），能走到这里说明已经超过全局闸门。
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public Result<Void> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
         log.warn("上传文件超限：{}", e.getMessage());
-        return Result.fail(ResultCode.PARAM_ERROR, "图片大小不能超过 2MB");
+        return Result.fail(ResultCode.PARAM_ERROR, "上传的文件过大，请压缩或拆分后重试");
     }
 
     /** 访问了不存在的接口/资源 */
