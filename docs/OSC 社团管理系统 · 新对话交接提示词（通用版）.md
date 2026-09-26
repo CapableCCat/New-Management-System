@@ -41,7 +41,7 @@
 - **端口**：后端 dev 8080 / prod 8081；前端 dev 5173（`/api` 代理到 8080 并剥前缀）
 - **定位**：社团数字档案馆（飞书管今天、OSC 管昨天和明天），V1.0 明示不做 IM / 资产台账 / AI / 官网
 - **范围**：14 个 Must 切片 = 12 核心 + F-013 数据导出 + F-014 反馈入口
-- **当前状态**：T1~T11 已提交推送；**T12 公告系统已完成、待提交**（改动全在工作树里）；下一个是 **T13 Excel 批量导入**
+- **当前状态**：T1~T12 已提交推送；**T13 Excel 批量导入已完成、待提交**（另含"组件库内置文案中英文切换"）；下一个是 **T14 数据导出**
 
 ---
 
@@ -64,33 +64,34 @@
 
 > **本节是「本轮做什么」的唯一出处**，每次交接由 AI 更新。
 
-**阶段：纳新主链已完成（T1~T11）→ 支撑链进行中（T12 已完成，T13~T17 待做）**
+**阶段：纳新主链完成（T1~T11）→ 支撑链过半（T12、T13 已完成，T14~T17 待做）**
 
-| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO） |
+| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ **T12 公告系统**（富文本前后端双重 XSS 清洗 + 公告配图） |
 | ------------ | ------------------------------------------------------------ |
-| **已完成、未提交** | **T12 公告系统**（PRD F-008）：管理端发布/编辑/删除、成员端列表/详情、置顶排序、**富文本前后端双重 XSS 白名单清洗**、公告配图（MinIO）；接口 55 项 + 页面 48 项实测全过，`eslint` 0 / `vite build` 通过。另有 T11 遗留的**共享工具类抽取**（`ImageValidator` / `MinioSupport`），已含在 T12 改动里 |
-| 下一个       | **T13 Excel 批量导入**（PRD F-009、切片 9）—— **开工前必须先提交 T12**（等社长说「提交 T12」） |
-| 后续         | T14 数据导出 → T15 基础看板 → T16 反馈入口 → T17 全链路联调上线 |
+| **已完成、未提交** | **T13 Excel 批量导入**（PRD F-009）：模板下载（含"填写说明"sheet）、上传逐行校验并建号、错误行清单（行号+原因）、一次性密码清单；首次启用 **FastExcel**（EasyExcel 官方续作）。另含**组件库内置文案中英文切换**（D94，顺手解决 T12 记录的英文确认框问题）与 `utils/csv.js` / `utils/download.js` 两个公共工具。接口 57 项 + 页面 34 项 + T12 回归 48 项全过 |
+| 下一个       | **T14 数据导出**（PRD F-013、切片 13）—— **开工前必须先提交 T13**（等社长说「提交 T13」） |
+| 后续         | T15 基础看板 → T16 反馈入口 → T17 全链路联调上线 |
 
-**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T12 公告系统」条目（覆盖 F-008 / 切片 8，含技术方案与验证记录）。
+**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T13 Excel 批量导入」条目（含技术方案与验证记录）。
 
-**T13 要点（从清单摘出）**：
-- 模板下载（列头：姓名、手机号、学号、学院、专业、部门、职位）；上传导入逐行校验；错误行清单（行号+原因）；导入建号 + 一次性密码清单导出
-- 重复手机号 → 该行标记错误并跳过；部门/职位编码非法 → 该行标记错误；模板列头不符 → 提示「请使用标准模板」
-- 这是 **EasyExcel 首次启用**（pom 里本来就留了位）；建号口径沿用 T7：随机初始密码 + `activated_at=NULL`（强制改密）+ 唯一性校验
+**T14 要点（从清单摘出）**：
+- 成员名册导出（按筛选条件）；报名/审核数据导出（含留痕）；**文件名含日期**；导出列按权限控制
+- 自测要点：导出文件可打开、内容与列表一致；敏感列不含无权限字段
+- 权限口径记得对 PRD 权限矩阵：**数据导出 = 社长团 / 超管**（部长没有）
+- 实现上大概率复用 T13 引入的 FastExcel 写 Excel；CSV 已有公共工具 `utils/csv.js`
 
-**T13 开工前必做（环境）**：
-1. **MinIO 必须先起着**（公告/头像都要用）：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`
-   ⚠️ 在本机 shell 里起必须**显式带上 `MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin`**，否则会报 `Unable to validate credentials inherited from the shell environment`
-2. **后端重启前先在 IDEA 里刷新 Maven**：T12 新加了 `org.jsoup:jsoup`，不刷新会 `NoClassDefFoundError`
-3. **前端新增依赖需要 `npm install`**（T12 已装：`@wangeditor-next/editor`、`editor-for-vue`、`dompurify`）；社长的 5173 dev server 建议重启一次
+**T14 开工前必做（环境）**：
+1. **MinIO 必须先起着**（公告/头像要用）：`E:\Minio\minio\minio.exe server E:\Minio\osc-data --address :9000 --console-address :9001`
+   ⚠️ 在本机 shell 里起必须**显式带上 `MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin`**，否则报 `Unable to validate credentials inherited from the shell environment`
+2. **后端重启前先在 IDEA 里刷新 Maven**：T12 加了 `org.jsoup:jsoup`、T13 加了 `cn.idev.excel:fastexcel`，不刷新会 `NoClassDefFoundError`
+3. 前端依赖已装齐（`@wangeditor-next/editor`、`editor-for-vue`、`dompurify`），无需再 `npm install`
 
-**⚠️ 工作树约定（T12 之后）**：T12 的改动（server / web / docs）**全部还在工作树里，未 commit** —— 提交时请按功能拆多个 commit（建议：server 公告模块+清洗、web 公告页面与编辑器、docs 台账与交接），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
+**⚠️ 工作树约定（T13 之后）**：T13 的改动（server / web / docs）**全部还在工作树里，未 commit** —— 提交时按功能拆多个 commit（建议：server Excel 导入、web 导入页 + 语言切换、docs 台账与交接），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
 
 **❓ 待用户定夺**：
 1. 三处字典种子存疑项 —— 附件3 的「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
-2. **Element Plus 全站内置文案是英文**（确认框按钮显示 OK / Cancel，见清单 §6 D87）—— 建议另开一个小任务点统一配 `zh-cn` locale（改 `App.vue` 一处即可），本轮只在公告删除确认框做了局部兜底。
-3. 公告图片**不做孤儿清理**（删公告不删图，见 §6 D86）—— 如需要回收桶里无引用的对象，可另开任务点。
+2. 公告图片与导入页面产生的对象存储文件**都不做孤儿清理**（D86）—— 如需回收可另开任务点。
+3. 语言切换当前**只覆盖组件库内置文案**（页面自写文案仍是中文，见 D94）—— 若要做整站 i18n，需要单独立项。
 
 ---
 
@@ -141,6 +142,16 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
   ② **别用 `| head` 起**（管道一关进程就被带走），重定向到日志文件再 `run_in_background`。
 - ⚠️ **jsoup 的协议白名单只有 http/https**：相对地址会被判成"非法协议"而把属性/整张图删掉 ——
   公告正文里存对象 key（`announcements/…`）时，**必须在清洗之前先把 key 展开成完整地址**（见 §6 D85）。
+- ⚠️ **Excel 库对"不是 Excel 的文件"会按文本/CSV 兜底解析**（T13 实测）：随便一个二进制/CSV 喂给
+  FastExcel 不报错，而是把首行当列头，于是报出「请使用标准模板」—— 把"文件坏了"错说成"列头不对"。
+  → 必须先做**文件头魔数**校验（xlsx = zip `PK\x03\x04`，xls = OLE2）。
+- ⚠️ **FastExcel 的包名是 `cn.idev.excel`**（不是旧系统的 `com.alibaba.excel`）；`@ExcelProperty` 也在
+  `cn.idev.excel.annotation`。照抄旧系统代码会编译不过。
+- ⚠️ **无头浏览器里验证「文件下载」不可靠**（`Browser.setDownloadBehavior` 未必落盘）：改为在页面里埋点，
+  包一层 `URL.createObjectURL` 与 `HTMLAnchorElement.prototype.click`，断言 blob 类型/大小与下载文件名 ——
+  这样验的是页面接线本身，与环境无关（T13 实证）。
+- ✅ **无头浏览器里验证「文件上传」**：CDP `DOM.getDocument` + `DOM.querySelector('input[type=file]')`
+  拿到 nodeId，再用 `DOM.setFileInputFiles` 塞真实文件路径（会触发 change → 组件的 on-change）✓
 - ⚠️ **启动命令必须在 `server/` 目录下执行**，否则读不到 `.env`（`spring.config.import` 用相对路径）。
 - ⚠️ **配置值不要经 mysql 批处理往返**：mysql 批处理会把真实换行输出成字面量 `\n`（T6 踩过，简介里出现反斜杠-n）。
   读中文多行值走接口或加 `--raw`。
@@ -228,6 +239,10 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 公告配图               | MinIO `announcements/{yyyyMM}/{时间戳}.{ext}`；库里只存对象 key、输出拼公开前缀（D85）；上传三层校验复用 `ImageValidator` |
 | 图片校验 / MinIO 公共  | `util/ImageValidator`（扩展名+Content-Type+魔数）、`util/MinioSupport`（建桶+公开读策略）—— 头像与公告配图共用 |
 | 页面用例的驱动方式     | `dist` 产物上只能用真实 DOM 交互（`Input.insertText` / 派发 `input`）；`setupState` 那招只在 dev server 上有效（见「四、环境与坑」） |
+| Excel 批量导入         | 接口 `/member/admin/import`、`/member/admin/import-template`；**权限=社长团/超管**（路由 meta.leaderGroup）；服务 `service/MemberImportService(+Impl)`；页面 `views/admin/ImportView.vue` |
+| Excel 库               | `cn.idev.excel:fastexcel` 1.3.0（EasyExcel 官方续作，包名 `cn.idev.excel`）；列头常量在 `dto/ImportRow` |
+| 组件库语言切换         | `stores/locale.js` + `App.vue` 的 `<el-config-provider>`（Vant 走 `Locale.use()`）；切换入口 `components/LocaleSwitch.vue`，偏好存 `localStorage.osc_locale`；**只覆盖组件库内置文案**（见 §6 D94） |
+| CSV / 文件下载工具     | `utils/csv.js`（buildCsv / downloadCsv / today）、`utils/download.js`（saveBlob / readBlobMessage） |
 
 ---
 
