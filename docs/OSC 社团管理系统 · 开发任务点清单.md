@@ -53,7 +53,7 @@
 | T14 | 数据导出 | F-013 / 切片13 | T10、T7 | ✅ 已完成 |
 | T15 | 基础看板 | F-010 / 切片10 | T4、T5 | ✅ 已完成 |
 | T16 | 轻量反馈入口 | F-014 / 切片14 | T4 | ✅ 已完成（待提交） |
-| T17 | 全链路联调与上线准备 | NFR / M2-M3 | 全部 | ⏳ |
+| T17 | 全链路联调与上线准备 | NFR / M2-M3 | 全部 | ✅ 已完成（待提交） |
 | T18 | 公开端报名链路梳理 | F-001 / F-005、PRD v3.2 | T6、T8 | ✅ 已完成（待提交） |
 | T19 | 内部导航与首页工作台（**含统一外壳**） | PRD §8.2 v3.2、§6 D106~D108 / D112 / D118~D122 | T3~T15 | ✅ 已完成（待提交） |
 
@@ -1649,10 +1649,78 @@ web/
 # 5) 兜底：手机模拟（≤768 宽）打开反馈列表，应是卡片流、无横向滚动
 ```
 
-### T17 全链路联调与上线准备
+### T17 全链路联调与上线准备 ✅
 - **覆盖**：PRD §7 NFR、§11 里程碑 M2-M3
 - **交付物**：全流程演练脚本与记录（报名→审核→激活→登录→档案）；高峰并发模拟；部署方案落地（公网可达/HTTPS，含域名或现场方案）；数据库备份策略与演练；上线现场预案（盯日志/回滚）。
 - **自测要点**：按 PRD M2 出口条件执行：全流程演练 ≥1 轮 + 高峰模拟 + 0 数据丢失。
+
+#### T17 实现结果（2026-09-26 完成）
+
+**① 交付物落地**
+
+| 交付物 | 实现 |
+|---|---|
+| prod profile 冒烟 | 用 `--spring.profiles.active=prod` 真起一次（8091），逐条验 D15 安全基线：**19 项全过**。这里发现并按 D128 修掉了一个洞（`/doc.html` 与 `/webjars/**` 在 prod 下仍被静态资源处理返回页面） |
+| **性能修复（本轮最大收获）** | 高峰模拟暴露出 **`/auth/captcha` 是瓶颈**：单发 134ms、200 并发 P95 **8.6 秒**。逐层归因锁定为 **`ImageIO` 默认 `useCache=true` 导致每次写图都落一个磁盘临时文件**（只画图 0.05ms / ＋ImageIO 98ms / 用内存 0.52ms，差 190 倍）。修法见 D127 —— 修复后 200 并发 P95 **1650ms**、QPS 23→109 |
+| 全流程演练 | 端到端脚本走完「报名 → 审核通过建号 → 首登强制改密 → 登录 → 补档案 → 收公告 → 提反馈 → 查状态 → 成员展板」：**20 项全过**，12 步合计 **1480ms**（最慢一步 251ms） |
+| 高峰并发模拟 | 三档并发（**50 / 100 / 200**）× 三个接口（公开配置 / 验证码 / 登录态列表）：**全部零失败**，修复后最差 P95 **1650ms**（< 3s 目标） |
+| 首屏实测 | 冷启动（清缓存）量「用户真正能用的时刻」：报名页 load **145ms**、含验证码可用 **877ms**；查询页 279ms —— 均远低于 NFR 的 3 秒 |
+| 备份与恢复演练 | `mysqldump` 全量备份 → 恢复进临时库 → **6 张关键表行数逐一致**、配置与报名记录抽查一致 → 「**0 数据丢失**」有据；恢复步骤与计划任务样例写进交接文档 8.10 |
+| 部署方案（两套） | **主路径**：公网 + 域名 + HTTPS + Nginx 同源反代（含可照抄的配置样例）；**兜底**：现场局域网（同一配置改监听端口），并写明四个坑（热点带机量 / 防火墙 / IP 变动 / 校园网客户端隔离）→ 交接文档 8.7 / 8.8 |
+| 上线检查表 + 现场预案 | 16 项照抄打勾表（含 4 项 🔴 安全必做）、盯日志三样、常见故障处置表、**回滚三步**、免改代码的降级开关 → 交接文档 8.9 / 8.11 |
+
+**② 实测验证记录（prod 冒烟 19 + 全流程 20 + 并发 19 + 首屏 5 = 63 项全过）**
+
+| 分组 | 关键断言 |
+|---|---|
+| prod · 存活与 profile | `/health` 可达、`profile=prod`；组件状态表里**没有** error 详情字段（D15 要的"不回显下游错误详情"） |
+| prod · 接口文档必须关 | `/doc.html`、`/v3/api-docs`、`/swagger-ui/*`、`/webjars/*` 全部取不到内容（`code=40400`）——注意本项目 **HTTP 一律 200**，所以判的是响应体里的 code，不是状态码 |
+| prod · 公开接口正常 | `/recruit/info`、`/dict/college`、`/dict/types`、`/auth/init-status`、`/auth/captcha` 全部 `code=200` |
+| prod · 该拦的仍拦 | `/member/list`、`/dashboard/member-stats`、`/feedback/admin/list`、`/config/admin/list` 未登录 → `40100` |
+| dev · 未被误伤 | 改动只 `@Profile("prod")` 生效：dev 下 `/doc.html` 与 `/v3/api-docs` 照常可用 |
+| 全流程演练 | 见上表 20 项；其中「未改密前访问其它接口 → `40005`」「成员看到的整页都**没有**手机号/学号（列范围裁剪）」两条是关键红线 |
+| 并发 | 见上表；**修复前后对比**：验证码 50 并发 P95 1867→426ms、100 并发 3599→823ms、200 并发 8597→1650ms |
+| 首屏 | 报名页 load 145ms / 可用 877ms；查询页 279ms |
+| 备份恢复 | 6 表行数一致 + 内容抽查一致 |
+
+**③ 注意**
+- 🔴 **上线前必须处理：库里的夹具账号**。现有 `13900000090~097`（T9/T10/T13 夹具，**其中 13900000090 是超管**）密码是写在开发文档里的 `OscTest#2026` —— **不清掉或改密，上线后任何人都能登进来当超管**。已列入交接文档 8.9 检查表第一条。
+- 🔴 **prod 下的接口文档**：`knife4j.enable=false` + `springdoc.*.enabled=false` 只关掉了"接口数据"，**页面外壳仍会被静态资源返回 200**（本轮实测发现）→ 已加 `ProdDocDisabledConfig` 在 prod 拦掉（D128）。
+- ⚠️ **ImageIO 那个坑只在本机是这样吗？** 不一定：`useCache=true` 是 JDK 默认行为，任何平台都会写临时文件；Windows 上还叠加杀软扫描所以特别明显。**换机器/换系统都必须重新量一次**（这正是 T17 存在的意义）。
+- ⚠️ **局域网方案一定要现场提前试**：热点带机量、Windows 防火墙、内网 IP 变动、校园网客户端隔离 —— 这四条任一条中招都是"手机打不开、本机却正常"。
+- ⚠️ **压测数字偏保守**：压测进程与后端抢同一台机器的 CPU；真机部署应更好。上线后建议在真机上再压一次。
+- 📌 本轮**没有**改动业务逻辑，只加了两处配置类（`ImageIoConfig`、`ProdDocDisabledConfig`）—— 属于"上线前该修的硬伤"，不是新功能。
+
+**验证步骤**（照抄执行）
+
+```powershell
+# 0) 先打包（本轮改了后端）：
+cd "F:\Project\Own Project\New-Management-System\server"
+& "E:\MAVEN\apache-maven-3.6.3\bin\mvn.cmd" package -DskipTests
+
+# 1) prod 冒烟：用 prod profile 起一个隔离实例（端口别用 8080/8081）
+$env:SERVER__PORT = $null; $env:SERVER__HOST = $null
+& "C:\Program Files\Java\jdk-17\bin\java.exe" -jar target\osc-server-1.0.0.jar --spring.profiles.active=prod --server.port=8091
+#    另开一个窗口验证（注意本项目 HTTP 一律 200，要看响应体里的 code）：
+curl.exe -s --noproxy 127.0.0.1 http://127.0.0.1:8091/health
+curl.exe -s --noproxy 127.0.0.1 http://127.0.0.1:8091/doc.html          # 期望 {"code":40400,...}
+curl.exe -s --noproxy 127.0.0.1 http://127.0.0.1:8091/v3/api-docs       # 期望 {"code":40400,...}
+curl.exe -s --noproxy 127.0.0.1 http://127.0.0.1:8091/recruit/info      # 期望 code=200
+
+# 2) 性能（对照修复前后：单发 /auth/captcha 应从 ~134ms 降到 ~10ms）
+1..20 | ForEach-Object { (Measure-Command { curl.exe -s -o NUL --noproxy 127.0.0.1 http://127.0.0.1:8091/auth/captcha }).TotalMilliseconds } |
+  Measure-Object -Average -Maximum
+
+# 3) 备份演练（把路径换成你的备份目录）
+$mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
+& "$mysql\mysqldump.exe" --user=root --password=root --single-transaction --routines --triggers osc > "$env:TEMP\osc_check.sql"
+& "$mysql\mysql.exe" --user=root --password=root "--execute=CREATE DATABASE IF NOT EXISTS osc_restore_check CHARACTER SET utf8mb4;"
+& "$mysql\mysql.exe" --user=root --password=root osc_restore_check < "$env:TEMP\osc_check.sql"
+& "$mysql\mysql.exe" --user=root --password=root --table "--execute=SELECT (SELECT COUNT(*) FROM osc.user) AS src, (SELECT COUNT(*) FROM osc_restore_check.user) AS restored;"
+& "$mysql\mysql.exe" --user=root --password=root "--execute=DROP DATABASE osc_restore_check;"
+
+# 4) 上线当天：照交接文档 §八 8.9 的检查表逐条打勾；出问题看 8.11
+```
 
 ---
 
@@ -1958,6 +2026,11 @@ $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 | D110 | 公开端落地页**按 `recruit_open` 动态决定** | 现状 `/` → 登录页，新生扫码第一眼看到登录页、报名页躲在后面。改为：报名开关打开时根路径进**报名页**（纳新期一步到位），关闭时进登录页。零额外配置、语义自洽（复用 T6 已有的开关） | T18 |
 | D111 | 「不是错误、只是引导」的分支统一 `200 + nextAction` | 扩展 D61 的口径：手机号已提交过报名 / 已是正式成员等分支，现在只返回一句纯文案（"请到查询页查看进度"）却没给按钮，用户看完还得自己找页面。改为 `200` + `data.nextAction`（`QUERY`/`LOGIN`/`APPLY`），前端就地渲染提示卡 + 按钮；错误码只留给真正的失败。**代价**：要同步改 T6 的接口用例与验证记录 | T18 / T6 |
 | D112 | 公告通知用 `localStorage` 记已读；**统一外壳列为待办不做** | ① 右上角公告红点：用 `localStorage` 记"上次查看时间"，**不落库、不加表**（V1.0 不为一个红点引入未读状态模型）。② 把 3 套 layout 合并成 1 套 AppShell（同一顶栏 + 视图切换）属**架构级改动**，波及全部路由与已交付页面用例 —— V1.0 上线优先，**留待后续**，不在 T19 做（⚠️ **② 已于 T19 落地：见 D118**）| T19 / 后续 |
+| D113 | 报名提交结果统一用 `state` + `nextAction` 表达 | 原 `RecruitSubmitVO` 只有一个 `resubmitted` 布尔，表达不了「已在待审」「已是成员」这两种**引导**结果。改成 `(phone, submittedAt, state, nextAction, message)`：`state` ∈ `SUBMITTED`/`RESUBMITTED`/`ALREADY_PENDING`/`ALREADY_MEMBER`（前端据此定标题与图标），`nextAction` ∈ `QUERY`/`LOGIN`（决议"去哪"，也是 D111 契约），`message` 是给用户看的一句话。`resubmitted` 并入 `state` 后删除（仅 Controller 拼 message 用过一处） | T6 / T18 |
+| D114 | 公开端落地页判定放在**路由守卫**、开关走 store 缓存 | 路由表不写死 `/` 的落点（去掉 `{ path:'/', redirect:'/login' }`），守卫里判：已登录 → `/home`；未登录按 `recruit_open` → `/apply` 或 `/login`。**开关取不到时回退登录页**（比回退报名页保守：报名页在后端不可用时也提交不了）。之所以不用 `redirect` 函数：它不能是 async，而开关要请求接口 | T18 |
+| D115 | `/recruit/info` 的**会话级缓存** + 文案随 `data` 下发 | 新增 `stores/recruit.js` 缓存整份 info（守卫判落地页、报名页取简介、查询页取审核时效共用一次请求）。**失败不写缓存**（下次导航重试）。另外：axios 拦截器已把 `body.data` 脱壳返回，业务层读不到 `body.message` —— 所以需要展示后端文案时**必须把文案放进 `data`**（这是 D113 里留 `message` 字段的原因，不是冗余） | T18 |
+| D116 | `/recruit/status` **不动** | 它已经是 `200 + data:null`（未找到）与三态 `status` 的口径，前端四种结果分支也齐了。本轮只改 `/recruit/apply` 的引导分支，**避免无谓扩大 T8 的回归面**（社长确认） | T18 |
+| D117 | 报名页简介由长篇精简为**一句话** | 社长反馈「报名页是了解之后才来的，长文没必要再讲一遍」。核对 PRD：**F-001 第 1 步原文写的就是「展示社团简介（Logo、一句话介绍、活动照片轮播）」** —— 一句话才是 PRD 要的，397 字三段长文属超规格实现，所以**不订正 PRD**。做法：`club_intro` 由 397 字改为 21 字一句话，样式从白底三段改为轻量一行（左侧主色竖条 + 品牌淡底、去掉 justify）；配置机制不动（仍在「纳新设置」页可改，改回多段也能渲染），并同步该页的**过时提示**（原写「建议 3 段：定位 / 方向 / 纳新期待」→「建议一句话」）与文本框默认高度（`rows` 12→2）+ 库中 `sys_config.remark`。原文可从 git 回溯（`git show 90ddafe:server/sql/02_seed_dict.sql`）。**遗留**：同一句还要求 **Logo 与活动照片轮播**，至今未实现，V1.0 是否补待定（不属 T18） | T6 / T18 |
 | D118 | **统一外壳提前到 T19 落地**（修订 D112 第 ② 条） | 原计划把"3 套 layout 合并成 1 套 AppShell"留待后续，社长在 T19 开工时明确「就不分管理端和成员端了，都按账号权限显示能看到的和能设置的，核心在权限而不是页面」。于是当场落地：删掉 `MemberLayout` / `AdminLayout`，内部场景统一为 `AppShell`；公开场景仍是独立的 `PublicLayout`（**公开页不得出现登录后元素**这条不变）。**路径策略：保留现有路径**（`/admin` 退化为纯命名空间，不再代表另一套外壳）—— 已交付的页面用例与文档里的路径基本不用改。**移动端**：底部 tabbar 取菜单 `order` 最小的 3 项 +「更多」抽屉（社长选定） | T19 / 全站 |
 | D119 | 菜单与守卫**单一出处** + 能力判定全部收敛 | 路由 meta 统一声明 `{ title, task, menu: { label, order, capability } }`，`router/menu.js` 用 `router.getRoutes()` 生成菜单，守卫用**同一条** `capability` 判定 —— 于是不可能再出现"菜单看得见点不进去 / 能进但不显示"。`constants/roles.js` 按 PRD 权限矩阵逐行补具名能力函数；**store 上旧的 4 个计算属性（`isSuperAdminUser` / `canManageAllUsers` / `canManageDeptUsers` / `canEnterAdminPage`）全部删除**，`AuditView.isFullScope` 由手写 `||` 展开改为调用 `canManageAll()`。这样"谁能看什么"只剩**一处**声明 | T19 / 全站 |
 | D120 | 看板对**成员**开放（取代 D103 的"成员端导航不加项"） | PRD 权限矩阵「看板查看」本来就给成员 ✅；D103 当初折中成"页面留在管理端、成员端导航不加项"，是因为**两套外壳互不连通**。统一外壳后按权限显示即可，成员菜单里就有「看板」。若要收回，只改路由表该条的 `capability` 一行（不用动别处） | T15 / T19 |
@@ -1967,11 +2040,11 @@ $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 | D124 | 反馈入口**只放两处** | PRD 写「报名成功页、成员端首页/个人中心」，字面上三处都行。社长确认**只做两处**：**报名结果态**（公开页，source=1）+ **工作台**（source=2）；个人中心不再加，避免入口泛滥。两处共用 `components/FeedbackDialog.vue` | T16 |
 | D125 | 加「标记已处理」（PRD 只要求"可查看"） | `feedback.handled` 是 T2 建表时就有的列，但 PRD F-014 只要求"管理端可查看反馈列表"。社长确认**加上**：列表里一键在 0/1 之间切换（`POST /feedback/admin/handle`），复盘时能区分"看过没有"。**不加**的是工作流（转派、回复、分类），V1.0 用不上 | T16 |
 | D126 | 反馈内容按**纯文本**存取，不做富文本 | 与公告（F-008）刻意区分：公告需要排版所以走了白名单清洗链，反馈只是"一句话诉求"。存 TEXT + 前端 `{{ }}` 渲染（Vue 默认转义）→ 天然无 XSS，**不需要**再引一套清洗。代价：用户不能贴图/加粗，符合"轻量"定位 | T16 |
-| D113 | 报名提交结果统一用 `state` + `nextAction` 表达 | 原 `RecruitSubmitVO` 只有一个 `resubmitted` 布尔，表达不了「已在待审」「已是成员」这两种**引导**结果。改成 `(phone, submittedAt, state, nextAction, message)`：`state` ∈ `SUBMITTED`/`RESUBMITTED`/`ALREADY_PENDING`/`ALREADY_MEMBER`（前端据此定标题与图标），`nextAction` ∈ `QUERY`/`LOGIN`（决议"去哪"，也是 D111 契约），`message` 是给用户看的一句话。`resubmitted` 并入 `state` 后删除（仅 Controller 拼 message 用过一处） | T6 / T18 |
-| D114 | 公开端落地页判定放在**路由守卫**、开关走 store 缓存 | 路由表不写死 `/` 的落点（去掉 `{ path:'/', redirect:'/login' }`），守卫里判：已登录 → `/home`；未登录按 `recruit_open` → `/apply` 或 `/login`。**开关取不到时回退登录页**（比回退报名页保守：报名页在后端不可用时也提交不了）。之所以不用 `redirect` 函数：它不能是 async，而开关要请求接口 | T18 |
-| D115 | `/recruit/info` 的**会话级缓存** + 文案随 `data` 下发 | 新增 `stores/recruit.js` 缓存整份 info（守卫判落地页、报名页取简介、查询页取审核时效共用一次请求）。**失败不写缓存**（下次导航重试）。另外：axios 拦截器已把 `body.data` 脱壳返回，业务层读不到 `body.message` —— 所以需要展示后端文案时**必须把文案放进 `data`**（这是 D113 里留 `message` 字段的原因，不是冗余） | T18 |
-| D116 | `/recruit/status` **不动** | 它已经是 `200 + data:null`（未找到）与三态 `status` 的口径，前端四种结果分支也齐了。本轮只改 `/recruit/apply` 的引导分支，**避免无谓扩大 T8 的回归面**（社长确认） | T18 |
-| D117 | 报名页简介由长篇精简为**一句话** | 社长反馈「报名页是了解之后才来的，长文没必要再讲一遍」。核对 PRD：**F-001 第 1 步原文写的就是「展示社团简介（Logo、一句话介绍、活动照片轮播）」** —— 一句话才是 PRD 要的，397 字三段长文属超规格实现，所以**不订正 PRD**。做法：`club_intro` 由 397 字改为 21 字一句话，样式从白底三段改为轻量一行（左侧主色竖条 + 品牌淡底、去掉 justify）；配置机制不动（仍在「纳新设置」页可改，改回多段也能渲染），并同步该页的**过时提示**（原写「建议 3 段：定位 / 方向 / 纳新期待」→「建议一句话」）与文本框默认高度（`rows` 12→2）+ 库中 `sys_config.remark`。原文可从 git 回溯（`git show 90ddafe:server/sql/02_seed_dict.sql`）。**遗留**：同一句还要求 **Logo 与活动照片轮播**，至今未实现，V1.0 是否补待定（不属 T18） | T6 / T18 |
+| D127 | **关闭 ImageIO 的磁盘缓存**（T17 上线前性能修复，本轮最有价值的一条） | 高峰模拟暴露 `/auth/captcha` 单发 **134ms**、200 并发 P95 **8.6 秒**（而同样读库的 `/recruit/info` 只有 7.6ms）。归因过程（都是实测，不是推断）：① 换验证码类型没用（算术 / 字符 / 中文三种都是 ~110ms）→ 不是 Nashorn；② 字体只加载一次没用（118→108ms）→ 不是字体；③ 拆开量：只画图 **0.05ms**、＋`ImageIO.write` **98.38ms**、把 `ImageIO.setUseCache(false)` 后 **0.52ms** —— **190 倍差距全在「默认 useCache=true 时往磁盘落临时文件」这一行配置上**。修法：启动时 `ImageIO.setUseCache(false)`（`ImageIoConfig`）。效果：200 并发 P95 8597→**1650ms**、QPS 23→**109**。⚠️ 这是 JDK 默认行为，换机器 / 换系统要重新量 | T17 |
+| D128 | prod 下**真正**关掉接口文档入口 | D15 写的是「prod 关闭 Knife4j 与 /v3/api-docs」，但 `knife4j.enable=false` + `springdoc.*.enabled=false` 只关掉了**接口数据**（`/v3/api-docs` 确实取不到了），**`/doc.html` 页面外壳与 `/webjars/**` 仍由 Spring 静态资源处理返回 200** —— T17 prod 冒烟实测发现。修法：`ProdDocDisabledConfig`（`@Profile("prod")`）在过滤链最前面把这几条路径按项目口径返回 `{"code":40400}`。只在 prod 生效，dev 下文档照常可用（两个 profile 都已实测） | T17 |
+| D129 | 上线形态**两套都备** + 备份与上线前清理 | ① **主路径**：公网 + 域名 + HTTPS + Nginx 同源反代（配置样例见交接文档 8.7）；**兜底**：现场局域网（同一份配置改监听端口，8.8）—— PRD §7 写明「公网**或现场**可达」，两条都合规。② 局域网必须提前处理的四个坑：**手机热点带机量只有 8~15 台**、Windows 防火墙、内网 IP 变动、**校园网客户端隔离**（任一条中招都是「手机打不开、本机却正常」，必须现场用两台手机先试）。③ 备份：纳新期**每天至少一次 `mysqldump`** + 关键节点手动一次，备份文件与库**分盘存放**；恢复步骤已演练（逐表行数一致、0 数据丢失），计划任务样例见 8.10。④ 🔴 **上线前必做**：清掉或改密夹具账号（`1390000009x`，其中 13900000090 是超管，密码是公开写着的） | T17 |
+
+| D130 | 后端启动时**自检依赖 + 自动拉起 MinIO**（**已定方案、未排期**） | 社长诉求：「只开两个 —— 一个前端，一个后端（后端连带把依赖起起来）」。**方案（社长已选）**：dev profile 下加一个启动自检组件，探 `3306 / 6379 / 9000`；**MySQL / Redis 只告警不拉起**（两者是 AUTO_START 的 Windows 服务，`net start` 还要管理员权限，不该由应用代管）；**MinIO 缺失则按配置命令拉起并轮询等就绪**，已在跑则跳过（幂等）；开关 `osc.dev.auto-start-deps` 可关；**prod profile 下整个类不生效**（部署时 MinIO 是独立服务）。MinIO 的 exe 路径与数据目录写进 `application-dev.yml` 默认值（`E:\Minio\minio\minio.exe` / `E:\Minio\osc-data`）。**两条边界**：① 后端退出**不保证带走 MinIO**（只拉起、不管生命周期，反正重复启动是幂等的）；② ⚠️ **"真 spawn 进程"那一段只能在 IDEA 里验** —— 本机沙箱禁止 AI spawn 外部 exe。**附带收益**：减少 AI 用会话内后台任务起服务 → **少一个"旧会话被唤醒"的来源**（见交接文档 §四） | 未排期（原议并入 T17，T17 已收官；可作为上线后的开发便利项随时插入） |
 
 ---
 
@@ -2006,3 +2079,4 @@ $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 > - 2026-09-26 **T19 完成**（内部导航与首页工作台，**含范围变更：统一外壳一起做掉**）。三套 layout 合并为 `PublicLayout` + `AppShell`；菜单与守卫靠路由 `meta.menu.capability` **单一出处**生成/判定；`constants/roles.js` 按 PRD 权限矩阵补 12 个具名能力、store 上 4 个旧计算属性删除；首页改「工作台」（撤公告摘要）；新增公告铃铛红点 + 一键已读（`localStorage`，不落库）。**T19 页面 42 项 +「只改一处」端到端 4 项 + 回归 98 项（T18 公开端 35 / T15 看板 29 / T13 导入 34）＝ 144 项全过**；`eslint` 0 error、`vite build` 通过。T19 条目补「实现结果 + 验证记录」，总表状态转 ✅；T12 的首页摘要记录就地订正；§6 新增 D118~D122。
 > - 2026-09-26 **T19 提交推送**（`dd5b909` web 统一外壳与路由声明 / `80ebc86` docs）。
 > - 2026-09-26 **T16 完成**（轻量反馈入口：免登录提交 + 两处入口 + 管理端反馈列表 + 标记已处理；表 T2 已建 → **零 DDL**）。接口 **27 项** + 页面 **26 项** + 回归 **106 项**（T19 42 / T18 35 / T15 29）＝ **159 项全过**；`eslint` 0 error、`vite build` 通过；落库复核了匿名提交的审计字段与纯文本存储。T16 条目补「实现结果 + 验证记录」，总表状态转 ✅；§6 新增 D123~D126；顺带在工作台接上 T19 留的「意见反馈」占位卡（多出一张「反馈待查看」），T19 的用例预期已同步更新。
+> - 2026-09-26 **T17 完成**（全链路联调与上线准备，**最后一个任务点**）。prod profile 首次真跑并冒烟 **19 项**；**发现并修掉两个上线硬伤** —— ① `/auth/captcha` 单发 134ms、200 并发 P95 8.6 秒，根因是 **ImageIO 默认写磁盘临时文件**（只画图 0.05ms vs ＋ImageIO 98ms，190 倍），关掉 `useCache` 后 200 并发 P95 降到 **1650ms**、QPS 23→109；② prod 下 `/doc.html` 与 `/webjars/**` 仍返回页面（`knife4j.enable=false` 只关了接口数据），已加 prod 专属过滤器拦掉。全流程演练 **20 项**（12 步 1480ms）、并发 **19 项**、首屏 **5 项**（报名页可用 877ms）、备份恢复演练（**6 表行数一致，0 数据丢失**）全过。部署方案两套（公网 HTTPS / 现场局域网）、上线检查表（含 4 项 🔴 安全必做）、备份与计划任务、现场预案与回滚步骤 → 全部写进交接文档 §八 8.7~8.11；§6 新增 D127~D129，并把决策表按编号补齐排序。

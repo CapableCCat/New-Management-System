@@ -65,43 +65,33 @@
 
 > **本节是「本轮做什么」的唯一出处**，每次交接由 AI 更新。
 
-**阶段：纳新主链完成（T1~T11）→ 支撑链完成（T12~T15）→ 信息架构调整（T18、T19 已完成）→ 收尾（T16 已完成、T17 待做）**
+**阶段：T1~T19 全部完成（T16 已推送、T17 待提交）→ 接下来是落地部署与上线**
 
-| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ T12 公告系统（富文本双重 XSS 清洗）/ T13 Excel 批量导入 / T14 数据导出 / **T15 基础看板** / **T18 公开端报名链路梳理**（含报名页简介精简为一句话）/ **T19 内部导航与首页工作台**（含统一外壳；`80ebc86`） |
+| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ T12 公告系统 / T13 Excel 批量导入 / T14 数据导出 / **T15 基础看板** / **T18 公开端报名链路梳理** / **T19 内部导航与首页工作台（含统一外壳）** / **T16 轻量反馈入口**（`2fc36d0`） |
 | ------------ | ------------------------------------------------------------ |
-| **已完成、未提交** | **T16 轻量反馈入口**（免登录提交 + 一次性验证码把门；两处入口：报名结果态 / 工作台；管理端反馈列表 + 标记已处理；**零 DDL**）。接口 27 + 页面 26 + 回归 106 = 159 项全过 |
-| **下一步（按序）** | ① **先提交 T16**（等社长说「提交 T16」，按 server / web / docs 拆 commit）→ ② **T17 全链路联调与上线准备** |
+| **已完成、未提交** | **T17 全链路联调与上线准备**（prod 冒烟 19 + 全流程演练 20 + 并发 19 + 首屏 5 = 63 项全过；**修掉两个上线硬伤**：验证码 ImageIO 磁盘缓存、prod 接口文档外壳）。这是**最后一个开发任务点** |
+| **下一步（按序）** | ① **先提交 T17**（等社长说「提交 T17」，按 server / docs 拆 commit）→ ② **照 §八 8.7 / 8.8 落地部署**（公网 HTTPS 或现场局域网）→ ③ **上线当天照 8.9 检查表逐条打勾、出问题看 8.11** |
 
 > **⚠️ 为什么 T18/T19 插在 T16 前面**：社长在 T15 之后提了两点质疑 —— ①「管理系统首页不该展示公告，公告该由官网负责，最多右上角搞个通知」；
 > ②「不该分管理端/成员端，直接按后台给的权限看到自己能看的不就行了」。核对后都是真问题（详见《清单》T18/T19 条目与 §6 D106~D112），
 > 而且 T16（反馈入口）**同时要动首页与报名结果态** —— 先把信息架构理顺，T16 才不会返工两次。
 
-**本轮施工依据**：`docs/OSC 社团管理系统 · 开发任务点清单.md` 的「T17 全链路联调与上线准备」条目（含完整交付物清单）。
+**本轮施工依据**：**已无待开发的任务点**（T1~T19 全部完成）。接下来的事都在本文档 §八：
+- 部署：**8.7**（公网 + 域名 + HTTPS，主路径）/ **8.8**（现场局域网，兜底 + 四个坑）
+- 上线：**8.9** 检查表（照抄逐条打勾，含 4 项 🔴 安全必做）/ **8.11** 现场预案与回滚
+- 数据：**8.10** 备份与恢复演练
 **需求依据**：`docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md` 已订正为 **v3.2**（§8.2 页面地图改「场景 + 权限」两层模型、F-001/F-005 的入口与出海口径）。
 
-**T18 / T19 / T16（已完成、待提交，要点不在此重复）**：交付物与实测记录见《清单》§4 各自条目，实现层决策见 §6 D109~D126。
-⚠️ **T19 的范围比原计划大**：社长当场推翻了「统一外壳不做」，**三套 layout 已合并为 `PublicLayout` + `AppShell`**（D118），
-「管理端 / 成员端」两套界面与那两个切换按钮都已不存在 —— 内部导航一律由路由表生成、按权限显隐。
-⚠️ **T16 之后加页面更省事了**：往路由表加一条 + 声明 `meta.menu.capability` 即可，菜单与守卫同源生效（D119）。
-
-**T17 要点（全链路联调与上线准备，最后一点）**
-1. **归上传前必做**：`mvn package` 出 jar（不带 `clean`）、前端 `npm run build` 出 `dist`、`system_url` 改成公网 HTTPS、
-   报名开关与种子数据的收尾核对（PRD §10.1 的内容素材、部门/职位/字典启停）
-2. **全链路走一遍**：报名 → 审核（通过建号 + 密码清单）→ 首登强制改密 → 公告 → 成员档案 → 导入/导出 → 看板 → 反馈，
-   重点验**跨角色的可见性**（T19 统一外壳后，"谁能看什么"只有路由表一处声明，走查一遍最省事）
-3. **环境与运维**：MinIO 凭据、Redis 验证码 TTL、MySQL 备份、反向代理（中文文件名下载的 `Content-Disposition` 别被改写 —— T14 的 RFC 5987）
-4. **遗留待定项**（可能在这一步收）：PRD F-001 同句要求的 **Logo 与活动照片轮播**至今未实现（§6 D117 遗留）；
-   公告配图/导入产生的对象存储文件**不做孤儿清理**（D86）；`sys_config` 的**纳新设置能否放宽给社长团**（T6 遗留，未决）
-5. 上线前的自测清单 = 各任务点 §4 的「验证步骤」串起来跑一遍，别只跑新增部分
+**T16 / T17（已完成、待提交，要点不在此重复）**：交付物与实测记录见《清单》§4 各自条目，实现层决策见 §6 D123~D129。
 
 **开工前必做（环境）** —— **完整清单与命令一律看「八、启动清单与常用命令」8.1**，这里只留三条要点：
 1. **MySQL / Redis 是 AUTO_START 服务**（开机自启，不用管）；**只有 MinIO 需要手动起**（🔧 详见 8.2）
 2. **分工约定（社长拍板）**：常驻服务（MinIO / 后端 / 前端）**由社长在会话外手动起**，
    AI 不要用会话内后台任务起它们（原因见 §四 最后一条：后台任务结束会唤醒旧会话）；AI 自测只用隔离栈 8090 + 5180 且当轮收掉
-3. **本轮改了后端**（新增 feedback 的实体/Mapper/Service/Controller + 白名单一行）→ **重启一次后端**；**无新增依赖**，不用管 Maven 刷新
+3. **本轮改了后端**（新增两个配置类：`ImageIoConfig`、`ProdDocDisabledConfig`）→ **重启一次后端**；**无新增依赖**
 
-**⚠️ 工作树约定（T16 之后）**：T16 的改动（server 10 项：9 新增 + `SaTokenConfig` 白名单一行；web 6 项：3 新增 + 路由/工作台/报名页改动；docs 2 份）**全部还在工作树里，未 commit** ——
-提交时按功能拆多个 commit（建议：server 反馈接口 / web 反馈入口与列表 / docs 台账），**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
+**⚠️ 工作树约定（T17 之后）**：T17 的改动（server 2 个新配置类 + docs 2 份；**没有业务代码改动**）**还在工作树里，未 commit** ——
+提交时按 server / docs 拆 2 个 commit 即可，**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
 
 **❓ 待用户定夺**
 1. 三处字典种子存疑项 —— 附件3「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
@@ -323,6 +313,9 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 工作台（首页）         | `/home` = 按角色的待办与入口（待审报名 / 资料完整度 / 导入 / 导出 / 反馈占位），**不再放公告摘要**（T19 / D107 / D122） |
 | 公告通知红点           | `components/AnnouncementBell.vue` + `utils/announcementRead.js`；有新公告即亮、**打开公告页才算已读**、面板含「一键已读」（T19 / D121）。⚠️ 已读时间用**本地时区 ISO 串**，别用 `toISOString()` |
 | 轻量反馈（F-014）      | 提交**免登录**但必须带一次性验证码（白名单只放两段路径 `/feedback/*`）；入口两处＝报名结果态(source=1) + 工作台(source=2)，共用 `components/FeedbackDialog.vue`；管理端 `/admin/feedback`（社长团/超管）＋ 标记已处理；内容按**纯文本**存（T16 / D123~D126） |
+| 上线部署与运维         | 两套方案 + 检查表 + 备份 + 预案**全在本文档 §八 8.7~8.11**（T17）：公网 HTTPS 的 Nginx 样例、现场局域网四坑、16 项打勾检查表、`mysqldump` 与计划任务、盯日志/回滚三步/降级开关 |
+| 性能红线（易复发）     | 验证码生成**必须**保持 `ImageIO.setUseCache(false)`（`ImageIoConfig`）；默认值会让每次出图落一个磁盘临时文件 → 单发 134ms、200 并发 P95 8.6 秒（T17 / D127）。换机器要重新量 |
+| prod 安全边界          | prod 下接口文档必须取不到：`knife4j.enable=false` **不够**（页面外壳仍 200），靠 `ProdDocDisabledConfig` 拦 `/doc.html` 与 `/webjars/**`（T17 / D128） |
 
 ---
 
@@ -351,6 +344,8 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 ```
 - 凭据默认 `minioadmin / minioadmin`；桶 `osc` 由**应用启动时自动创建**并设公开读，不用手动建
 - ⚠️ **别用 `| head` 之类的管道起它**（管道一关进程就被带走）——直接前台跑，或重定向到日志文件
+- 📌 **未来可能不用手动起了**：社长已选定「后端启动时自检依赖 + 自动拉起 MinIO」的方案（**尚未排期**）——
+  想看方案细节与两条边界，查《清单》§6 **D130**。实现后本页的启动动作会简化成「只开后端 + 前端」。
 
 ### 8.3 后端（在 `server/` 目录下执行）
 
@@ -391,6 +386,182 @@ $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 & $mysql --user=root --password=root --default-character-set=utf8mb4 --table `
   "--execute=USE osc; SELECT type, code, label, enabled FROM sys_dict ORDER BY type, sort;"
 ```
+
+---
+
+### 8.7 生产部署 A：公网 + 域名 + HTTPS（主路径）
+
+**前提**：云主机或学校服务器（Linux，2C4G 起）、域名（境内域名需备案）、开放 80/443。
+
+**步骤**
+1. 装 JDK 17、MySQL 8、Redis、Nginx。
+2. 建库建表（**root 执行**）：`server/sql/01_schema.sql` → `02_seed_dict.sql`（幂等）；
+   再建应用账号 `osc_app`（只给 `osc.*` 的 DML，无 DDL —— 见 D24/D25，密码放服务器环境变量）。
+3. 放文件：后端 `server/target/osc-server-1.0.0.jar`；前端 `web/dist/` 整个目录（`npm run build` 的产物）。
+4. 写 `server/.env`（**不入仓**，键名见 8.1）：`APP_PORT` / `MYSQL_*` / `REDIS_*` / `SA_TOKEN_*` / `MINIO_*`。
+   ⚠️ 线上 Redis **必须设密码**（`application-prod.yml` 里已留好 `REDIS_PASSWORD` 的位置）。
+5. 起后端：`java -jar osc-server-1.0.0.jar --spring.profiles.active=prod`（在 `server/` 目录下执行）。
+   prod 已关掉接口文档与错误详情；T17 起还会拦掉 `/doc.html` 与 `/webjars/**`（见 D127 所在条目的同类修复）。
+6. Nginx：**同源**反代 `/api/` 到后端（**剥掉 `/api` 前缀**，与前端约定一致 —— D31）+ 托管 `dist` + SPA 回退。
+7. HTTPS：`certbot --nginx -d 你的域名`（Let's Encrypt 免费）或云厂商证书。
+
+**Nginx 配置样例（可照抄；把域名和路径换成自己的）**
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name osc.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/osc.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/osc.example.com/privkey.pem;
+
+    root /opt/osc/dist;          # 放 web/dist 的内容
+    index index.html;
+
+    # 前端（SPA）：未命中的路径都回 index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 后端：同源反代，注意 proxy_pass 末尾的 "/" —— 它负责剥掉 /api 前缀
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 3m;                 # 头像/公告配图 ≤2MB，留点余量
+    }
+
+    # 带 hash 的静态资源可以长缓存
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+
+server {
+    listen 80;
+    server_name osc.example.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+> ⚠️ **中文文件名下载**（T14 的 Excel 导出）走的是 `Content-Disposition: attachment; filename*=UTF-8''...`（RFC 5987）。
+> 上线后**务必用手机/浏览器真下一次**，确认反代没有改写这个头。
+
+### 8.8 生产部署 B：现场局域网（兜底，不需要域名与证书）
+
+**适用**：纳新摊位现场，笔记本跑服务、新生手机连同一个 WiFi/热点扫码。PRD §7 写明"公网**或现场**可达"，所以这条是合规的兜底路径。
+
+**做法**：把 8.7 的 Nginx 换成下面这份简化配置（同一台笔记本上跑），二维码指向 `http://<内网IP>:8080/`。
+
+```nginx
+server {
+    listen 8080;
+    server_name _;
+    root D:/osc/dist;            # web/dist 的内容
+    index index.html;
+
+    location / { try_files $uri $uri/ /index.html; }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081/;
+        proxy_set_header Host $host;
+        client_max_body_size 3m;
+    }
+}
+```
+
+**四个必须提前处理的坑**（都踩过或见过）：
+1. **手机热点带机量**：普通手机热点只容纳 8~15 台设备 —— 200 人扫码会有一大半连不上。现场请用**路由器**或准备多个热点，并提前测一次带机量。
+2. **Windows 防火墙**：首次监听端口会弹窗，必须放行"专用网络"；否则手机连不上而本机自己打得开（最难查）。
+3. **内网 IP 会变**：DHCP 续租后 IP 一换，二维码就失效 → 给笔记本设**静态 IP**（或在路由器里按 MAC 绑定）。
+4. **校园网常有客户端隔离**：同一 WiFi 下手机与笔记本互相不可见 → **务必现场提前用两台手机实测一次**，别等开场。
+
+> 局域网方案的 **MinIO**：若现场只跑报名/审核，可以不起 MinIO（头像与公告配图上传会报友好错误，其余功能正常，见 D78 的降级）；
+> 若要收头像，就在同一台笔记本上起 MinIO 并把 `MINIO_PUBLIC_URL` 改成本机内网地址。
+
+### 8.9 上线检查表（照抄逐条打勾）
+
+| 类别 | 检查项 | 怎么查 | 期望 |
+| :--- | :--- | :--- | :--- |
+| 🔴 **安全** | **测试/夹具账号必须清掉或改密** | `SELECT id,phone,name,role FROM user WHERE is_deleted=0;` | 库里现有的 `1390000009x`（T9/T10/T13 夹具，**其中 `13900000090` 是超管**）密码是公开的 `OscTest#2026` —— **上线前必须删除或改密**，否则任何人都能登进来当超管 |
+| 🔴 **安全** | 社长的超管账号密码已改 | 用 `18178325352` 登录一次 | 不再是初始密码；手机号确认是本人 |
+| 🔴 **安全** | prod 下接口文档不可达 | `curl https://域名/api/../doc.html` 或直接 `curl http://<后端>:8081/doc.html` | 返回 `{"code":40400}`（T17 已实测修复） |
+| 🔴 **安全** | 线上 Redis 设了密码 | 服务器环境变量 `REDIS_PASSWORD` | 已设；后端能正常读写验证码 |
+| 🟡 配置 | `sys_config.system_url` | 后台「纳新设置」或直接查库 | 改成对外地址（短信里的 `{系统链接}` 用它） |
+| 🟡 配置 | `recruit_open` = 1 | 后台「纳新设置」 | 纳新当天为 1；结束当天改 0（报名页只显示"已结束"） |
+| 🟡 配置 | 社团简介 / 审核时效文案 | 后台「纳新设置」 | 都是当前要用的文案 |
+| 🟡 数据 | 字典核对（部门/职位/学院/专业/标签） | 后台「字典管理」 | 与本届实际情况一致；停用不要的项 |
+| 🟡 数据 | 种子演示数据 | 查 `announcement` / `recruit_apply` / `feedback` | 演示公告（id 13/14/15）、看板演示报名（`139000004xx`）、2 条演示反馈 —— **按需保留或清掉**，别让新生看到"看板演示甲" |
+| 🟡 数据 | MinIO 桶 | 起 MinIO 后上传一张头像 | 桶自动创建、公开读；未配置时上传报友好错误（不影响其它功能） |
+| 🟢 功能 | 手机扫码全链路 | 两台手机各走一遍 | 报名 → 查状态 → 收到审核短信文案 → 登录（首登改密） |
+| 🟢 功能 | 中文文件名下载 | 手机上导出一次成员名册 | 文件名正常（不乱码） |
+| 🟢 运维 | 备份任务已建 | 见 8.10 | 每日至少一次，且**演练过一次恢复** |
+
+### 8.10 数据库备份与恢复（纳新期必做）
+
+**备份（T17 已演练：恢复后逐表行数一致）**
+
+```powershell
+# Windows（纳新期建议每天一次 + 关键节点手动一次）
+$mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
+$dst   = "E:\backup\osc"                       # ⚠️ 与数据库文件分盘存放
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+$stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+& "$mysql\mysqldump.exe" --user=root --password=root --default-character-set=utf8mb4 `
+  --single-transaction --routines --triggers osc > "$dst\osc_$stamp.sql"
+```
+
+```bash
+# Linux（cron：每天 02:30）
+# 30 2 * * * /usr/bin/mysqldump --single-transaction --routines --triggers osc > /backup/osc_$(date +\%Y\%m\%d).sql
+```
+
+**Windows 计划任务**（一次性建好，之后自动跑）：
+```powershell
+schtasks /create /tn "osc-backup-daily" /sc daily /st 02:30 ^
+  /tr "cmd /c \"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe\" --user=root --password=root --single-transaction --routines --triggers osc > E:\backup\osc\osc_%date:~0,4%%date:~5,2%%date:~8,2%.sql"
+```
+> `/tr` 里的引号与 `%date%` 在不同机器上可能需要微调；建好后**手动 `schtasks /run /tn osc-backup-daily` 跑一次**确认出文件。
+
+**恢复演练步骤**（T17 实测通过，`0 数据丢失`）
+```powershell
+& "$mysql\mysql.exe" --user=root --password=root "--execute=DROP DATABASE IF EXISTS osc_restore_check; CREATE DATABASE osc_restore_check CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+& "$mysql\mysql.exe" --user=root --password=root --default-character-set=utf8mb4 osc_restore_check < "E:\backup\osc\osc_20260926_230000.sql"
+# 逐表比行数（user / recruit_apply / announcement / sys_dict / sys_config / feedback），一致才算过
+& "$mysql\mysql.exe" --user=root --password=root --table "--execute=SELECT (SELECT COUNT(*) FROM osc.user) AS src, (SELECT COUNT(*) FROM osc_restore_check.user) AS restored;"
+& "$mysql\mysql.exe" --user=root --password=root "--execute=DROP DATABASE osc_restore_check;"
+```
+
+### 8.11 现场预案（盯什么 / 出事怎么办）
+
+**盯这三样**（纳新当天每半小时看一眼）
+1. **后端日志**（重定向的那个文件）：搜 `ERROR`、`Exception`、`health 健康检查失败`。
+2. **`/health`**：`components.redis` 与 `components.mysql` 必须都是 `UP`（prod 下不会回显错误详情，只给状态）。
+3. **报名数增长**：`SELECT COUNT(*) FROM recruit_apply;` 是否在随现场进度上涨；长时间不涨要主动排查。
+
+**常见故障与处置**
+
+| 现象 | 最可能原因 | 处置 |
+| :--- | :--- | :--- |
+| 手机打不开页面 | 局域网：IP 变了 / 防火墙 / 校园网隔离；公网：证书或反代挂了 | 用本机先自测 `curl`；局域网按 8.8 的四条逐一排 |
+| **登录/报名验证码加载很慢** | 老代码的 ImageIO 磁盘缓存问题（T17 已修：单发 134ms → ~9ms） | 确认线上 jar 是 T17 之后的版本 |
+| 所有人都登不进来 | **Redis 挂了**（验证码取不到）→ 先看 `/health` | 重启 Redis；Redis 恢复后验证码自动可用 |
+| 报名提交报 500 类错误 | **MySQL 连接池打满/库挂了** | 看 `/health` 与日志；池上限 20（prod 配置），必要时临时加大 |
+| 头像/公告配图传不上 | MinIO 没起或桶策略丢了 | 起 MinIO；不影响报名与审核（降级） |
+| 页面白屏 | 前端产物与后端版本不匹配（缓存） | 强制刷新；确认 `dist` 是最近一次 `npm run build` 的 |
+
+**回滚（记住三步）**
+1. **先留旧版**：每次更新前把旧 `jar` 与旧 `dist` 改名备份（如 `osc-server-1.0.0.jar.bak`、`dist.bak`）。
+2. **出问题**：停后端 → 换回旧 jar / 旧 dist → 重启 → 用 8.9 的"手机扫码全链路"再验一遍。
+3. **数据不跟着回滚**：回滚只回代码，**不要**用旧备份覆盖库（那会丢掉已经收到的报名）；除非数据被写坏，才用 8.10 的备份恢复。
+
+**降级开关（不改代码就能用的）**
+- 报名太乱 / 要收尾：后台「纳新设置」把 `recruit_open` 关掉（报名页只显示"已结束"，已提交的报名不受影响）。
+- 要通知所有人：发一条**置顶公告**（成员端菜单 + 右上角铃铛红点都会亮）。
+- 审核积压：审核台的「批量通过」一次处理多条（会输出一次性密码清单）。
 
 ---
 
