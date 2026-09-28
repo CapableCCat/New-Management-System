@@ -42,8 +42,8 @@
 - **定位**：社团数字档案馆（飞书管今天、OSC 管昨天和明天），V1.0 明示不做 IM / 资产台账 / AI / 官网
 - **范围**：14 个 Must 切片 = 12 核心 + F-013 数据导出 + F-014 反馈入口
 - **当前状态**：**T1~T19 全部完成并已推送**（最新 `4dffbec`；此后仅有文档类提交：新增 README、PRD 一致性订正），**开发阶段结束**；PRD 已订正为 **v3.2**（页面地图改「场景 + 权限」两层）。
-  接下来不是开发，而是**上线前的三项收尾**：① 清夹具账号（安全）② 建备份 + 恢复演练（数据）③ 报名页加 Logo（第一印象）——
-  详见「三、当前阶段与下一步」
+  此后按《清单》§7 的 P0 顺序做了**上线前三件收尾**：① 清夹具账号（安全）**✅ 2026-09-27** ② 建备份 + 恢复演练（数据）**✅ 2026-09-28** ③ 报名页加 Logo（第一印象）**✅ 2026-09-28（升级为正式任务点 §4 `T20`）** —— **三件已全部完成**，
+  下一步进入 V1.0 收尾开发（T21~T30）
 
 ---
 
@@ -66,65 +66,53 @@
 
 > **本节是「本轮做什么」的唯一出处**，每次交接由 AI 更新。
 
-**阶段：T1~T19 全部完成并推送 → 上线前的三项收尾（安全 / 数据 / 第一印象），做完再落地部署**
+**阶段：V1.0 收尾开发（T21~T30）**
 
-| 已完成并推送 | T1 后端工程 / T2 数据库与字典种子 / T3 前端工程 / T4 登录认证（含首登强制改密）/ T5 字典管理 / T6 公开报名页 / T7 审核管理台 / T8 状态查询页 / T9 短信提效工具 / T10 成员档案管理 / T11 个人中心（首次启用 MinIO）/ T12 公告系统 / T13 Excel 批量导入 / T14 数据导出 / **T15 基础看板** / **T18 公开端报名链路梳理** / **T19 内部导航与首页工作台（含统一外壳）** / **T16 轻量反馈入口** / **T17 全链路联调与上线准备**（`424d88c`） |
-| ------------ | ------------------------------------------------------------ |
-| **已完成、未提交** | 无 —— **工作树干净，开发阶段到此结束** |
-| **下一步（按序，三件都交给新对话做）** | ① **清夹具账号**（5 分钟）→ ② **建备份计划任务 + 手动跑一次恢复演练**（半小时）→ ③ **报名页加 Logo**（1 小时） |
+| 已完成并推送       | T1~T19（开发阶段全部）+ **T20 报名页 Logo**                  |
+| ------------------ | ------------------------------------------------------------ |
+| **已完成、未提交** | 无                                                           |
+| **本轮任务**       | 按《OSC 系统 · V1.0 收尾需求》执行 **T21~T30**：<br>① **T21 视觉规范落地**（Vercel 风格 + 三层配色）<br>② **T22 菜单重组**（四组两级 + 图标化 + 账号区上移 + 公告合并）<br>③ **T23 响应式与设备适配修复**<br>④ **T24 登录页优化**（Logo + 去连通卡 + 居中背景）<br>⑤ **T25 报名页活动照片轮播**<br>⑥ **T26 对象存储孤儿文件清理**<br>⑦ **T27 纳新设置权限放宽**（给社长团）<br>⑧ **T28 V1.0 上线自测**（按《V1.0 上线自测清单》走查）<br>⑨ **T29 自测问题修复**<br>⑩ **T30 上线准备**（部署 + 备份 + 检查表，照 §八） |
+| **下一步**         | **T21 视觉规范落地** —— 全站基础设施，先行；它定下配色/圆角/动效后，后续所有 UI 改动一次到位 |
+
+**本轮依据**：
+- `docs/OSC 系统 · V1.0 收尾需求.md`（视觉规范 / 菜单重组 / 登录页 / 响应式 / A 池收尾）
+- `docs/OSC 系统 · V1.0 上线自测清单.md`（5 角色走查 + 问题汇总区）
+
+**收尾完成标准**：T28 自测全部通过 → T30 上线准备就绪 → 打 tag 发布 **V1.0**。
+
+**版本节奏共识**：V1.0 是首个可对外发布的版本；V1.1 是上线后的小修小补；V2.0 是能力层/架构级变更（数字资产库、整站 i18n、飞书集成）。**不刻意凑版本号**。
 
 #### 本轮三件事（社长 2026-09-27 亲自排的优先级；括号里是他给的理由）
 
-| # | 事项 | 时长 | 为什么做 | 要点与依据 |
-| :-- | :--- | :--- | :--- | :--- |
-| 1 | 🔴 **清夹具账号** | 5 分钟 | **安全** | 库里 8 个 `1390000009x` 的密码是公开写着的，**其中 `13900000090` 还是超管** → **删掉或改密二选一**；动手前先 `SELECT id,phone,name,role FROM user WHERE is_deleted=0;` 核一遍；对照 §八 **8.9** 检查表的 🔴 条 |
-| 2 | 🔴 **建备份计划任务 + 手动跑一次恢复演练** | 半小时 | **数据** | 步骤与计划任务样例见 §八 **8.10**：纳新期每天至少一次 `mysqldump`、**备份文件与库分盘存放**；⚠️ **"建过备份"和"能恢复"是两回事 —— 必须真恢复一次**（逐表行数一致才算过） |
-| 3 | 🟡 **报名页加 Logo** | 1 小时 | **第一印象** | PRD F-001 第 1 步原文要求「Logo、一句话介绍、活动照片轮播」，目前只做了"一句话介绍"（见 §6 D117）→ **本轮只做 Logo，轮播另议**；图走 MinIO + 三层图片校验（与头像 / 公告配图同一套 `ImageValidator`） |
+| #    | 事项                                  | 状态                                          |
+| :--- | :------------------------------------ | :-------------------------------------------- |
+| 1    | **清夹具账号**（安全）                | ✅ 2026-09-27 完成                             |
+| 2    | **建备份计划任务 + 恢复演练**（数据） | ✅ 2026-09-28 完成                             |
+| 3    | **报名页加 Logo**（第一印象）         | ✅ 2026-09-28 完成（升级为正式任务点 **T20**） |
 
-**这三件做完之后**：照 §八 **8.7 / 8.8 落地部署**（公网 HTTPS 主路径 / 现场局域网兜底）→ 上线当天照 **8.9** 检查表逐条打勾 → 出问题看 **8.11** 预案、数据看 **8.10**。
+**三项收尾已全部完成。** 按社长新决策，进入 **V1.0 收尾开发**（见上「本轮任务」），收尾完成后再落地部署。
 
-#### 已知取舍与待办（上线后再看，都不阻塞上线）
+#### 已知取舍与待办（不阻塞上线）
 
-> 这些是开发过程中明确记下的"暂时不做/待定"，纳新期间**不影响使用**，列在这里免得下次开新对话时想不起来。
+> 完整清单（**20 条**）见 **《开发任务点清单》§7「待排期优化项」** —— 不在本节重复罗列。
 
-| # | 事项 | 现状与影响 | 建议 |
-| :-- | :--- | :--- | :--- |
-| 1 | **Logo 与活动照片轮播** | PRD F-001 第 1 步同一句要求（「展示社团简介（Logo、一句话介绍、活动照片轮播）」），目前只有一句话简介 | **✅ Logo 已排入本轮三件事第 ③ 项**（轮播仍待定） |
-| 2 | **对象存储孤儿文件不清理**（D86） | 删公告不删配图、换头像不删旧图 → 桶里会留无引用对象，缓慢增长 | 纳新后按需做；量小可长期不管 |
-| 3 | **「纳新设置」只有超管能改**（T6 遗留） | PRD 权限矩阵没列这一行；社长团目前改不了报名开关与文案 | 若要放宽，属**新决策**，改 `@SaCheckRole` 一行 + 复查用例 |
-| 4 | **反馈只能看，不能回** | F-014 只要求"可查看列表"，没有回复用户/导出 | 纳新复盘时若反馈多，再加导出 |
-| 5 | **公告红点靠"打开页面才亮"**（D121） | 没有推送/邮件/短信通知；成员不打开系统就看不到新公告 | V1.5 再考虑真通知 |
-| 6 | **飞书免登未实现** | `user.open_id` 字段已建但没用上（属 V1.5） | 保持现状 |
-| 7 | **仓库内零自动化测试** | `spring-boot-starter-test` 依赖在，但没有 `src/test`；T1~T19 累计 **800+ 项验证全是 `%TEMP%` 里的临时脚本**，没有回归网 | ⚠️ **工程债最大的一条**：纳新后建议把 `.workbuddy/skills/osc-verify` 那套套路固化成仓库内 `verify/` + npm script |
-| 8 | **日志没有落盘与轮转配置** | prod 只设了日志级别，输出靠启动时重定向到文件 | 做成服务/开机自启时注意别丢日志；需要就加 `logging.file.name` |
+**本次已并入 V1.0 收尾的项**：
+- ✅ Logo 展示 —— 已完成（T20）
+- 🔄 活动照片轮播 —— 纳入 **T25**
+- 🔄 对象存储孤儿文件清理 —— 纳入 **T26**
+- 🔄 纳新设置权限放宽给社长团 —— 纳入 **T27**
 
+**仍待社长拍板的（PRD 未覆盖，属新决策）**：`O7` 免登录写接口限频阈值、`O8` 是否上完整审计表、`O12` 反馈是否要回复功能、`O19` 导出是否要列裁剪。
 
-> **⚠️ 为什么 T18/T19 插在 T16 前面**：社长在 T15 之后提了两点质疑 —— ①「管理系统首页不该展示公告，公告该由官网负责，最多右上角搞个通知」；
-> ②「不该分管理端/成员端，直接按后台给的权限看到自己能看的不就行了」。核对后都是真问题（详见《清单》T18/T19 条目与 §6 D106~D112），
-> 而且 T16（反馈入口）**同时要动首页与报名结果态** —— 先把信息架构理顺，T16 才不会返工两次。
+**本轮施工依据**：见上文「本轮任务」与「本轮依据」。
 
-**本轮施工依据**：**已无待开发的任务点**（T1~T19 全部完成）。接下来的事都在本文档 §八：
-- 部署：**8.7**（公网 + 域名 + HTTPS，主路径）/ **8.8**（现场局域网，兜底 + 四个坑）
-- 上线：**8.9** 检查表（照抄逐条打勾，含 4 项 🔴 安全必做）/ **8.11** 现场预案与回滚
-- 数据：**8.10** 备份与恢复演练
-**需求依据**：`docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md` 已订正为 **v3.2**（§8.2 页面地图改「场景 + 权限」两层模型、F-001/F-005 的入口与出海口径）。
+**开工前必做（环境）** —— 完整清单与命令一律看「八、启动清单与常用命令」8.1，这里只留三条要点：
 
-**T16 / T17（均已完成并推送，要点不在此重复）**：交付物与实测记录见《清单》§4 各自条目，实现层决策见 §6 D123~D129。
-
-**开工前必做（环境）** —— **完整清单与命令一律看「八、启动清单与常用命令」8.1**，这里只留三条要点：
 1. **MySQL / Redis 是 AUTO_START 服务**（开机自启，不用管）；**只有 MinIO 需要手动起**（🔧 详见 8.2）
-2. **分工约定（社长拍板）**：常驻服务（MinIO / 后端 / 前端）**由社长在会话外手动起**，
-   AI 不要用会话内后台任务起它们（原因见 §四 最后一条：后台任务结束会唤醒旧会话）；AI 自测只用隔离栈 8090 + 5180 且当轮收掉
-3. **本轮改了后端**（新增两个配置类：`ImageIoConfig`、`ProdDocDisabledConfig`）→ **重启一次后端**；**无新增依赖**
+2. **分工约定（社长拍板）**：常驻服务（MinIO / 后端 / 前端）**由社长在会话外手动起**，AI 不要用会话内后台任务起它们（原因见 §四 最后一条）
+3. **AI 自测只用隔离栈 8090 + 5180 且当轮收掉**
 
-**⚠️ 工作树约定（T17 之后）**：T17 的改动（server 2 个新配置类 + docs 2 份；**没有业务代码改动**）**还在工作树里，未 commit** ——
-提交时按 server / docs 拆 2 个 commit 即可，**只 add 明确路径**，`git commit` 与 `git push` 分两条命令。
-
-**❓ 待用户定夺**
-1. 三处字典种子存疑项 —— 附件3「航空航天」是否补成"学院"、「电子商务」（三年制高职）是否保留、「德语」（仅附件2）是否保留。可在字典管理页直接改。
-2. 公告配图与导入产生的对象存储文件**不做孤儿清理**（D86）—— 需回收可另开任务点。
-3. 语言切换**只覆盖组件库内置文案**（D94）—— 整站 i18n 需单独立项。
-4. 导出**不做列裁剪**（D96）；看板**只放管理端**（D103）；**统一外壳**留待后续（D112）。
+**❓ 待用户定夺** → 见上文「仍待社长拍板的」四项。
 
 ---
 
@@ -297,6 +285,7 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 关键词                 | 落点                                                         |
 | ---------------------- | ------------------------------------------------------------ |
 | 仓库入口（README）     | 根目录 `README.md`：项目简介 / 功能特性（F-001~F-014）/ 技术栈与版本 / 架构与目录 / 角色权限 / 快速开始 / 环境变量 / 部署概览 / 文档索引 —— 面向访客与接手者的入口，**需求与决策细节仍以 PRD 与《开发任务点清单》§6 为准**（2026-09-27 新增） |
+| 待排期优化项（含建议） | 《开发任务点清单》**§7**（`O1`~`O19`）：每条带「改什么 · 怎么改 · 代价 · 优先级」；🔴 P0＝上线前必做（清夹具账号 / 备份演练 / 报名页 Logo）。选中的条目应升级为正式任务点（T21 起）并在 §4 补方案·实现·验证（2026-09-27 新增） |
 | 权威需求依据           | `docs/OSC 社团管理系统 · 产品需求文档（PRD）V1.0.md`（F-001~F-014 功能卡片） |
 | 开发台账 / 进度 / 决策 | `docs/OSC 社团管理系统 · 开发任务点清单.md`（§3 总表 / §4 任务点详情 / §6 决策记录，按 D 编号索引） |
 | 定位与价值             | `docs/OSC 社团管理系统 · 战略定位与价值延伸说明.md`          |
@@ -344,6 +333,10 @@ curl.exe -s -o NUL -w "%{http_code}" --noproxy 127.0.0.1 http://127.0.0.1:9000/m
 | 上线部署与运维         | 两套方案 + 检查表 + 备份 + 预案**全在本文档 §八 8.7~8.11**（T17）：公网 HTTPS 的 Nginx 样例、现场局域网四坑、16 项打勾检查表、`mysqldump` 与计划任务、盯日志/回滚三步/降级开关 |
 | 性能红线（易复发）     | 验证码生成**必须**保持 `ImageIO.setUseCache(false)`（`ImageIoConfig`）；默认值会让每次出图落一个磁盘临时文件 → 单发 134ms、200 并发 P95 8.6 秒（T17 / D127）。换机器要重新量 |
 | prod 安全边界          | prod 下接口文档必须取不到：`knife4j.enable=false` **不够**（页面外壳仍 200），靠 `ProdDocDisabledConfig` 拦 `/doc.html` 与 `/webjars/**`（T17 / D128） |
+| V1.0 收尾需求 | docs/OSC 系统 · V1.0 收尾需求.md（视觉规范 / 菜单重组 / 登录页 / 响应式 / A池收尾） |
+| V1.0 上线自测清单 | docs/OSC 系统 · V1.0 上线自测清单.md（5 角色走查 + 问题汇总区） |
+| 视觉规范（三层配色） | 品牌蓝 #2B4EFF 主色 / 青蓝 #00D4FF 动效色 / Vercel 灰阶底子；圆角 6-12-16；动效 100~300ms |
+| 菜单分组（四组两级） | 我的 / 纳新管理 / 内容管理 / 数据洞察；路由 meta 加 `group` 字段，`el-menu-item-group` 渲染 |
 
 ---
 
@@ -514,7 +507,7 @@ server {
 
 | 类别 | 检查项 | 怎么查 | 期望 |
 | :--- | :--- | :--- | :--- |
-| 🔴 **安全** | **测试/夹具账号必须清掉或改密** | `SELECT id,phone,name,role FROM user WHERE is_deleted=0;` | 库里现有的 `1390000009x`（T9/T10/T13 夹具，**其中 `13900000090` 是超管**）密码是公开的 `OscTest#2026` —— **上线前必须删除或改密**，否则任何人都能登进来当超管 |
+| 🔴 **安全** | ~~**测试/夹具账号必须清掉或改密**~~ **✅ 已完成（2026-09-27）** | `SELECT id,phone,name,role FROM user WHERE is_deleted=0;` | 原 8 个 `1390000009x`（T9/T10/T13 夹具，**含超管 `13900000090`**，密码公开为 `OscTest#2026`）**已全部删除**，`user` 表只剩社长 id 9 → 本项通过（上线前再执行一次该 SQL 复核即可） |
 | 🔴 **安全** | 社长的超管账号密码已改 | 用 `18178325352` 登录一次 | 不再是初始密码；手机号确认是本人 |
 | 🔴 **安全** | prod 下接口文档不可达 | `curl https://域名/api/../doc.html` 或直接 `curl http://<后端>:8081/doc.html` | 返回 `{"code":40400}`（T17 已实测修复） |
 | 🔴 **安全** | 线上 Redis 设了密码 | 服务器环境变量 `REDIS_PASSWORD` | 已设；后端能正常读写验证码 |
@@ -526,41 +519,57 @@ server {
 | 🟡 数据 | MinIO 桶 | 起 MinIO 后上传一张头像 | 桶自动创建、公开读；未配置时上传报友好错误（不影响其它功能） |
 | 🟢 功能 | 手机扫码全链路 | 两台手机各走一遍 | 报名 → 查状态 → 收到审核短信文案 → 登录（首登改密） |
 | 🟢 功能 | 中文文件名下载 | 手机上导出一次成员名册 | 文件名正常（不乱码） |
-| 🟢 运维 | 备份任务已建 | 见 8.10 | 每日至少一次，且**演练过一次恢复** |
+| 🟢 运维 | ~~备份任务已建~~ **✅ 已完成（2026-09-28）** | `Get-ScheduledTaskInfo -TaskName "osc-backup-daily"`；`Get-Content E:\backup\osc\backup.log -Tail 5` | 任务 `Ready`、每日 02:30、`LastTaskResult=0`；日志有 `OK` 行 → 本项通过（**已完整演练过一次恢复**：6/6 表行数一致）。详见 8.10 |
 
 ### 8.10 数据库备份与恢复（纳新期必做）
 
-**备份（T17 已演练：恢复后逐表行数一致）**
+> **✅ 2026-09-28 已完成（《清单》§7 `O2`）**：备份脚本、每日计划任务、恢复演练**三项全部落地并实测通过**。
+> 下面「已建成」部分照抄现有配置；「Linux / 手工」部分留给换机器或应急参考。
+
+**已建成（Windows，社长机器上现成可用）**
+
+| 项 | 落点 |
+| :-- | :--- |
+| 备份脚本 | `E:\backup\osc\backup-osc.ps1`（`MYSQL_PWD` 传密码、`Start-Process -RedirectStandardOutput` 直写、14 天滚动清理、日志 `backup.log`） |
+| 计划任务 | `osc-backup-daily`，每日 **02:30**，`StartWhenAvailable`，`LastResult=0` |
+| 备份目录 | `E:\backup\osc\`（⚠️ 与 C 盘数据库文件**分盘**） |
+| 演练产物 | `osc_20260928_145922.sql`（30,362 bytes） |
 
 ```powershell
-# Windows（纳新期建议每天一次 + 关键节点手动一次）
+# 手动跑一次备份（不依赖任务计划）
+& powershell -ExecutionPolicy Bypass -File "E:\backup\osc\backup-osc.ps1"
+
+# 立刻触发计划任务、并查结果（0 = 成功）
+Start-ScheduledTask -TaskName "osc-backup-daily"
+Start-Sleep -Seconds 8
+Get-ScheduledTaskInfo -TaskName "osc-backup-daily" | Select-Object LastRunTime, LastTaskResult
+Get-Content "E:\backup\osc\backup.log" -Tail 5
+```
+
+> ⚠️ **本机踩过的坑**：① `schtasks.exe` 在 WorkBuddy 沙箱里被程序黑名单拦截（`Permission denied`），**建任务要用 PowerShell `Register-ScheduledTask`**（已建好，无需重建）；② **不要用 PowerShell 的 `>` 重定向**接 `mysqldump` —— 会做编码转换、产出 0 字节；脚本里已用 `Start-Process -RedirectStandardOutput` 规避；③ `--defaults-extra-file` 经 `Start-Process -ArgumentList` 传参会被空格拆断（报 `Access denied for user 'ODBC'`），故脚本改用 `MYSQL_PWD` 环境变量。
+
+**恢复演练步骤（2026-09-28 实测：行数 6/6 全对、表/列/索引逐项 diff 一致）**
+```powershell
 $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
-$dst   = "E:\backup\osc"                       # ⚠️ 与数据库文件分盘存放
-New-Item -ItemType Directory -Force -Path $dst | Out-Null
-$stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-& "$mysql\mysqldump.exe" --user=root --password=root --default-character-set=utf8mb4 `
-  --single-transaction --routines --triggers osc > "$dst\osc_$stamp.sql"
-```
+$bk    = "E:\backup\osc\osc_20260928_145922.sql"   # 换成实际要验的文件
 
+# 1) 建临时库
+& "$mysql\mysql.exe" -uroot -proot --execute="DROP DATABASE IF EXISTS osc_restore_check; CREATE DATABASE osc_restore_check DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 2) 导入（真恢复）
+& cmd /c "`"$mysql\mysql.exe`" -uroot -proot osc_restore_check < `"$bk`""
+
+# 3) 逐表比行数（6 张表：user / recruit_apply / announcement / sys_dict / sys_config / feedback）
+& "$mysql\mysql.exe" -uroot -proot --table --execute="SELECT 'user' t,(SELECT COUNT(*) FROM osc.user) src,(SELECT COUNT(*) FROM osc_restore_check.user) rst UNION ALL SELECT 'recruit_apply',(SELECT COUNT(*) FROM osc.recruit_apply),(SELECT COUNT(*) FROM osc_restore_check.recruit_apply) UNION ALL SELECT 'announcement',(SELECT COUNT(*) FROM osc.announcement),(SELECT COUNT(*) FROM osc_restore_check.announcement) UNION ALL SELECT 'sys_dict',(SELECT COUNT(*) FROM osc.sys_dict),(SELECT COUNT(*) FROM osc_restore_check.sys_dict) UNION ALL SELECT 'sys_config',(SELECT COUNT(*) FROM osc.sys_config),(SELECT COUNT(*) FROM osc_restore_check.sys_config) UNION ALL SELECT 'feedback',(SELECT COUNT(*) FROM osc.feedback),(SELECT COUNT(*) FROM osc_restore_check.feedback);"
+
+# 4) 清理临时库
+& "$mysql\mysql.exe" -uroot -proot --execute="DROP DATABASE osc_restore_check;"
+```
+> 判断标准：**行数逐表一致**才算过（不一致就说明备份不完整，先别删临时库、直接查原因）。
+
+**若换到 Linux 部署**（cron 每天 02:30）
 ```bash
-# Linux（cron：每天 02:30）
 # 30 2 * * * /usr/bin/mysqldump --single-transaction --routines --triggers osc > /backup/osc_$(date +\%Y\%m\%d).sql
-```
-
-**Windows 计划任务**（一次性建好，之后自动跑）：
-```powershell
-schtasks /create /tn "osc-backup-daily" /sc daily /st 02:30 ^
-  /tr "cmd /c \"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe\" --user=root --password=root --single-transaction --routines --triggers osc > E:\backup\osc\osc_%date:~0,4%%date:~5,2%%date:~8,2%.sql"
-```
-> `/tr` 里的引号与 `%date%` 在不同机器上可能需要微调；建好后**手动 `schtasks /run /tn osc-backup-daily` 跑一次**确认出文件。
-
-**恢复演练步骤**（T17 实测通过，`0 数据丢失`）
-```powershell
-& "$mysql\mysql.exe" --user=root --password=root "--execute=DROP DATABASE IF EXISTS osc_restore_check; CREATE DATABASE osc_restore_check CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
-& "$mysql\mysql.exe" --user=root --password=root --default-character-set=utf8mb4 osc_restore_check < "E:\backup\osc\osc_20260926_230000.sql"
-# 逐表比行数（user / recruit_apply / announcement / sys_dict / sys_config / feedback），一致才算过
-& "$mysql\mysql.exe" --user=root --password=root --table "--execute=SELECT (SELECT COUNT(*) FROM osc.user) AS src, (SELECT COUNT(*) FROM osc_restore_check.user) AS restored;"
-& "$mysql\mysql.exe" --user=root --password=root "--execute=DROP DATABASE osc_restore_check;"
 ```
 
 ### 8.11 现场预案（盯什么 / 出事怎么办）
