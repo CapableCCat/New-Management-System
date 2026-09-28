@@ -14,7 +14,7 @@ import { getRecruitInfo } from '@/api/recruit'
  * 调用方看到 null 一律按更保守的分支处理（落地页回退登录页）。
  */
 export const useRecruitStore = defineStore('recruit', () => {
-  /** /recruit/info 的完整返回（{ open, clubIntro, reviewNotice }），null 表示还没取到 */
+  /** /recruit/info 的完整返回（{ open, clubIntro, reviewNotice, logoUrl }），null 表示还没取到 */
   const info = ref(null)
   let pending = null
 

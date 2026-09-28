@@ -35,7 +35,7 @@ const submitted = ref(false)
 /** 反馈弹窗（F-014，T16） */
 const feedbackVisible = ref(false)
 const result = ref(null)
-const info = reactive({ open: true, clubIntro: '', reviewNotice: '' })
+const info = reactive({ open: true, clubIntro: '', reviewNotice: '', logoUrl: '' })
 const captchaImage = ref('')
 const privacyAgreed = ref(false)
 const pickerShow = ref(false)
@@ -362,6 +362,11 @@ watch(form, saveDraft, { deep: true })
 
     <!-- 报名表单 -->
     <template v-else>
+      <!-- 社团 Logo（PRD F-001 第 1 步）：未配置时整块不渲染，不影响其它内容 -->
+      <div v-if="info.logoUrl" class="apply__logo">
+        <img :src="info.logoUrl" alt="社团 Logo" />
+      </div>
+
       <section v-if="introParagraphs.length" class="apply__intro">
         <p v-for="(text, index) in introParagraphs" :key="index" class="apply__intro-p">
           {{ text }}
@@ -542,6 +547,19 @@ watch(form, saveDraft, { deep: true })
 <style scoped>
 .apply {
   padding: 12px 0 24px;
+}
+
+/* 社团 Logo：居中、限宽，未配置时整块不渲染（后台「纳新设置」可上传，见 T20/O3） */
+.apply__logo {
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px 12px;
+}
+
+.apply__logo img {
+  max-width: 96px;
+  max-height: 96px;
+  object-fit: contain;
 }
 
 /* 顶部一句话介绍：轻量一行，不占屏（长篇简介已精简；后台改回多段也能正常分段渲染） */
