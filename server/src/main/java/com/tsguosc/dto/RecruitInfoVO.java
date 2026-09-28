@@ -6,6 +6,7 @@ package com.tsguosc.dto;
  * @param open         报名是否开放（recruit_open = 1）
  * @param clubIntro    社团简介（多段，用空行分段）
  * @param reviewNotice 审核时效文案
+ * @param logoUrl      社团 Logo 的可访问地址（PRD F-001 第 1 步）；未配置时为 {@code null}，报名页不显示
  */
-public record RecruitInfoVO(boolean open, String clubIntro, String reviewNotice) {
+public record RecruitInfoVO(boolean open, String clubIntro, String reviewNotice, String logoUrl) {
 }

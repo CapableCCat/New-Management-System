@@ -25,13 +25,23 @@ public final class ConfigKeys {
     /** 报名开关：1 开放 / 0 关闭（关闭后报名页只展示结束提示） */
     public static final String RECRUIT_OPEN = "recruit_open";
 
+    /**
+     * 社团 Logo 的**对象 key**（如 {@code club/logo_20260928163000000.png}）。
+     *
+     * <p>⚠️ 存的是 key 不是完整地址（换域名不失效）；且**不走文本更新接口** ——
+     * 它是二进制上传的产物，只能由「纳新设置」页的上传/清除接口写（见 {@code ConfigAdminController}）。
+     * 若放进 {@link #EDITABLE_KEYS}，后台文本框会把它当普通文案暴露，手改一次就指向不存在的对象。
+     */
+    public static final String CLUB_LOGO = "club_logo";
+
     /** 允许超管在后台编辑的键（其余键需走运维流程，避免误改） */
     public static final Set<String> EDITABLE_KEYS =
             Set.of(SYSTEM_URL, SMS_TEMPLATE_PASS, SMS_TEMPLATE_REJECT,
                     CLUB_INTRO, REVIEW_NOTICE, RECRUIT_OPEN);
 
     /** 报名页需要公开读取的键 */
-    public static final Set<String> RECRUIT_PUBLIC_KEYS = Set.of(CLUB_INTRO, REVIEW_NOTICE, RECRUIT_OPEN);
+    public static final Set<String> RECRUIT_PUBLIC_KEYS =
+            Set.of(CLUB_INTRO, REVIEW_NOTICE, RECRUIT_OPEN, CLUB_LOGO);
 
     private ConfigKeys() {
     }
