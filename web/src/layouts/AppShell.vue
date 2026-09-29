@@ -11,12 +11,15 @@
  * 三档布局（T23，《V1.0 收尾需求》§4.5）：
  *   ≥1024px    desktop  侧栏完整展开（图标 + 文字），无折叠按钮
  *   768~1023px compact  侧栏**图标态**（64px）：鼠标移入临时展开为浮层；点折叠按钮可固定展开
- *   <768px     mobile   隐藏侧栏，底部 tabbar + 「更多」抽屉
+ *   <768px     mobile   隐藏侧栏，底部 tabbar + 「更多」→ **图标宫格**（T31）
+ *
+ * ⚠️ 手机档的「更多」**不再弹侧栏**（T31）：手机用户的心理模型是「应用宫格」而不是带缩进的纵向菜单。
+ *    宫格复用与侧栏**同一份** `groups`（单一出处），只是换一种排布；见 `components/MoreGrid.vue`。
  *
  * ⚠️ 用的是本文件专属的 `useLayoutMode`（三档），**不是** `useIsMobile`（只有 <768 一档，
  *    被 13 个页面用来切表格/卡片，语义不能动）。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import {
@@ -39,6 +42,7 @@ import { useUserStore } from '@/stores/user'
 import { useRouteMenu } from '@/router/menu'
 import AnnouncementBell from '@/components/AnnouncementBell.vue'
 import LocaleSwitch from '@/components/LocaleSwitch.vue'
+import MoreGrid from '@/components/MoreGrid.vue'
 
 /**
  * 菜单图标映射：路由 `meta.menu.icon` 存的是**组件名字符串**（路由表是纯数据，不该 import 组件），
@@ -73,6 +77,48 @@ const hoverExpand = ref(false)
 /** 紧凑档：点折叠按钮**固定**展开（占位推内容）—— 触屏没有 hover，必须有这条出路 */
 const pinnedExpand = ref(false)
 
+/**
+ * 视口高度（宫格弹层按内容算高度，但要留个上限，防止超出屏幕）。
+ * 单独监听 resize：`useLayoutMode` 只暴露档位、不带尺寸。
+ */
+const viewportHeight = ref(typeof window === 'undefined' ? 800 : window.innerHeight)
+const syncViewport = () => {
+  viewportHeight.value = window.innerHeight
+}
+
+/**
+ * 手机档「更多」宫格弹层的高度（px）。
+ *
+ * 按**行数**算而不是写死 —— 不同角色的菜单项数差很多（成员 4 项 / 超管 11 项），
+ * 写死高度会让成员看到一大片空白。数字要与 `MoreGrid.vue` 里的 CSS 保持一致。
+ */
+const GRID_ITEM_HEIGHT = 74
+const GRID_TITLE_HEIGHT = 24
+const GRID_GROUP_GAP = 6
+const GRID_COLUMNS = 4
+const SHEET_PADDING = 48
+
+const gridSheetHeight = computed(() => {
+  const rows = groups.value.reduce(
+    (sum, group) => sum + Math.max(1, Math.ceil(group.items.length / GRID_COLUMNS)),
+    0
+  )
+  const groupCount = groups.value.length
+  const content =
+    SHEET_PADDING +
+    groupCount * GRID_TITLE_HEIGHT +
+    rows * GRID_ITEM_HEIGHT +
+    Math.max(0, groupCount - 1) * GRID_GROUP_GAP
+  // 最多占视口 80%，超出就在弹层里滚（同时再兜一个 240px 下限，避免算出来太小）
+  return Math.max(240, Math.min(content, Math.round(viewportHeight.value * 0.8)))
+})
+
+/** 宫格点某一项 → 关弹层并跳转 */
+function onGridNavigate(path) {
+  drawerVisible.value = false
+  router.push(path)
+}
+
 /** 侧栏是否处于「图标态」 */
 const menuCollapsed = computed(
   () => isCompact.value && !hoverExpand.value && !pinnedExpand.value
@@ -102,6 +148,14 @@ function onToggleMenu() {
 watch(layoutMode, () => {
   hoverExpand.value = false
   pinnedExpand.value = false
+})
+
+onMounted(() => {
+  window.addEventListener('resize', syncViewport)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewport)
 })
 
 /** 右上角账号下拉：个人中心 / 退出登录 */
@@ -214,16 +268,21 @@ async function onAccountCommand(command) {
       </button>
     </nav>
 
-    <!-- 手机档：全部菜单（按资格生成的那一份，同样分组 + 图标） -->
-    <el-drawer v-model="drawerVisible" direction="ltr" size="260px" :title="APP_NAME">
-      <el-menu :default-active="route.path" router @select="drawerVisible = false">
-        <el-menu-item-group v-for="group in groups" :key="group.key" :title="group.label">
-          <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
-            <el-icon v-if="iconOf(item.icon)"><component :is="iconOf(item.icon)" /></el-icon>
-            <span>{{ item.label }}</span>
-          </el-menu-item>
-        </el-menu-item-group>
-      </el-menu>
+    <!--
+      手机档：全部功能 —— **图标宫格**（T31），不是侧栏。
+      从底部升起、高度按菜单项数算（见 gridSheetHeight），内容超高时内部滚动。
+    -->
+    <el-drawer
+      v-model="drawerVisible"
+      class="app-grid-sheet"
+      direction="btt"
+      :size="gridSheetHeight"
+      :with-header="false"
+      :z-index="2200"
+    >
+      <div class="app-grid-sheet__handle" aria-hidden="true"></div>
+      <h3 class="app-grid-sheet__title">全部功能</h3>
+      <MoreGrid :groups="groups" :icons="MENU_ICONS" @navigate="onGridNavigate" />
     </el-drawer>
   </div>
 </template>
@@ -432,5 +491,37 @@ async function onAccountCommand(command) {
 .app-tabbar__item.is-active {
   color: var(--brand-primary);
   font-weight: 500;
+}
+</style>
+
+<style>
+/*
+ * 宫格弹层的容器样式。
+ * ⚠️ 这里**故意不用 scoped** —— el-drawer 的内容是 teleport 到 body 的，
+ *    scoped 生成的 `[data-v-xxx] .el-drawer__body` 选择器在 body 层级找不到祖先，规则不会生效。
+ * 类名限定在 `.app-grid-sheet` 内，所以不会污染其它抽屉。
+ */
+.app-grid-sheet .el-drawer__body {
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
+.app-grid-sheet.el-drawer.btt {
+  border-radius: 16px 16px 0 0;
+}
+
+.app-grid-sheet__handle {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 10px;
+  border-radius: 2px;
+  background: var(--border-color);
+}
+
+.app-grid-sheet__title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 </style>
