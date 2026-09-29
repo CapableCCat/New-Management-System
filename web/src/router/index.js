@@ -42,7 +42,8 @@ const routes = [
         path: 'login',
         name: 'login',
         component: () => import('@/views/auth/LoginView.vue'),
-        meta: { title: '登录', public: true, task: 'T4' }
+        // bare：登录页要全屏背景 + 表单居中，故不显示页头页脚、内容不限宽（T24，见 PublicLayout 注释）
+        meta: { title: '登录', public: true, bare: true, task: 'T4' }
       },
       {
         path: 'init',
