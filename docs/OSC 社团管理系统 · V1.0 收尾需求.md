@@ -332,6 +332,15 @@ Logo 实际使用两套颜色（主体文字亮蓝 + 装饰几何青紫渐变）
 - 后端：注解改为 `@SaCheckRole({Roles.SUPER_ADMIN, Roles.LEADER_GROUP})`（或项目既有的「社长团」角色名常量）
 - ⚠️ 只改前端不改后端 = 社长团能看到菜单但点进去报 `40300`，务必成对改
 
+**✅ 已落地（任务点 `T27`，2026-09-29）**：前端只改 `roles.js` 一行（`canManageConfig` → `canManageAll`），
+后端 `ConfigAdminController` 4 个端点（list / update / logo 上传 / logo 删除）改
+`@SaCheckRole({SUPER_ADMIN, LEADER_GROUP}, mode = OR)`。**成对改到位，5 步验证里第 5 步专门验了这一点。**
+**三条没有跟着放宽的边界**：① **字典管理仍仅超管**（`canManageDict` 与 `DictController` 都没动）；
+② **存储维护仍仅超管**（`StorageAdminController` 未动，且页面内那块 UI 也不随页面权限放宽 ——
+这道保险是 `T26` 提前上好的）；③ 前端**不新增** `canManageRecruitConfig` 之类的重复能力函数
+（§5.3 建议新增，但 `canManageAll` 已存在且语义正好，复用可少一个"两个函数表示同一件事"的漂移入口）。
+**验证 28/28 全过**（4 角色 × 3 类端点的权限矩阵 + 路由守卫 + 页面内区块显隐 + 侧栏菜单），详见《开发任务点清单》§4 `T27`。
+
 **注意**：字典管理保持只超管（涉及系统级配置）。
 
 ---
