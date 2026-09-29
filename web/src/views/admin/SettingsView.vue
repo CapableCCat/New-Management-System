@@ -8,7 +8,7 @@ import { isSuperAdmin } from '@/constants/roles'
 import { useUserStore } from '@/stores/user'
 
 /**
- * 纳新设置（仅超管，T6 新增；T20/O3 加 Logo 上传）
+ * 纳新设置（T6 新增；T20/O3 加 Logo 上传；T26 加存储维护；**T27 放宽为超管 / 社长团**）
  *
  * 把报名页要用到的系统配置搬到后台，避免动不动改 SQL：
  *   - 报名开关（recruit_open）
@@ -18,6 +18,10 @@ import { useUserStore } from '@/stores/user'
  *     该键在库里存的是对象 key（`club/logo_xxx.png`），由后端专用端点写入，
  *     所以它不在 EDITABLE_KEYS 白名单里（否则文本框一改就指向不存在的对象）。
  * 另外把短信模板与系统访问地址一并列出，方便上线前核对。
+ *
+ * ⚠️ **权限分层（T27 起）**：本页整体放宽给社长团，
+ * 但页内的「**存储维护**」区块**仍仅超管**（见下方 showStorageTool）——
+ * 那是会真删对象存储文件的运维动作，不随页面权限一起放宽。
  */
 const loading = ref(false)
 const savingKey = ref('')
@@ -30,7 +34,7 @@ const userStore = useUserStore()
  * 存储维护（T26）**仅超管可见**。
  *
  * ⚠️ 为什么在本页还要单独判一次：本页路由的能力是 `canManageConfig`，
- * **T27 会把它放宽给社长团** —— 而"清理对象存储"是会真删东西的运维动作，必须留在超管手里。
+ * **T27 起已放宽给社长团** —— 而"清理对象存储"是会真删东西的运维动作，必须留在超管手里。
  * 所以这里显式用 `isSuperAdmin` 再拦一道，不依赖页面级权限。
  */
 const showStorageTool = computed(() => isSuperAdmin(userStore.profile))

@@ -1,6 +1,7 @@
 package com.tsguosc.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.annotation.SaMode;
 import com.tsguosc.common.constant.ConfigKeys;
 import com.tsguosc.common.constant.Roles;
 import com.tsguosc.common.result.Result;
@@ -25,9 +26,18 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 /**
- * 系统配置管理接口（仅超管）——「纳新设置」页用。
+ * 系统配置管理接口 ——「纳新设置」页用。
  *
- * <p>路径三段（/config/admin/xxx），不在拦截器白名单内，天然需要登录 + 超管角色。
+ * <p>路径三段（/config/admin/xxx），不在拦截器白名单内，天然需要登录 + 角色校验。
+ *
+ * <p><b>权限（T27 起）</b>：本页放的都是纳新运营配置（报名开关、审核时效、社团简介、社团 Logo、短信模板），
+ * 属于社长团日常要调的东西，故四个端点统一放宽为 **超管 或 社长团**（原仅超管，《收尾需求》§5.3）。
+ *
+ * <p>⚠️ 两条**没有**跟着放宽的边界（都在别处）：
+ * <ul>
+ *   <li>**字典管理**仍仅超管（{@code DictController} 未改）—— 系统级配置</li>
+ *   <li>**存储维护**仍仅超管（{@code StorageAdminController} 未改）—— 会真删对象存储的文件</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/config")
@@ -39,14 +49,14 @@ public class ConfigAdminController {
 
     /** 全部配置（含短信模板等，便于超管核对） */
     @GetMapping("/admin/list")
-    @SaCheckRole(Roles.SUPER_ADMIN)
+    @SaCheckRole(value = {Roles.SUPER_ADMIN, Roles.LEADER_GROUP}, mode = SaMode.OR)
     public Result<List<ConfigVO>> list() {
         return Result.ok(sysConfigService.list());
     }
 
     /** 更新单个配置（仅允许改 ConfigKeys.EDITABLE_KEYS 内的键） */
     @PutMapping("/admin/update")
-    @SaCheckRole(Roles.SUPER_ADMIN)
+    @SaCheckRole(value = {Roles.SUPER_ADMIN, Roles.LEADER_GROUP}, mode = SaMode.OR)
     public Result<Void> update(@Valid @RequestBody ConfigUpdateRequest request) {
         sysConfigService.update(request);
         return Result.ok(null, "保存成功");
@@ -61,7 +71,7 @@ public class ConfigAdminController {
      * @return 新的 Logo 可访问地址；未配置 Logo 时为 {@code null}
      */
     @PostMapping("/admin/logo")
-    @SaCheckRole(Roles.SUPER_ADMIN)
+    @SaCheckRole(value = {Roles.SUPER_ADMIN, Roles.LEADER_GROUP}, mode = SaMode.OR)
     public Result<String> uploadLogo(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "请选择要上传的 Logo 图片");
@@ -76,7 +86,7 @@ public class ConfigAdminController {
 
     /** 清除社团 Logo（删除对象 + 置空配置；报名页回到不显示 Logo 的状态） */
     @DeleteMapping("/admin/logo")
-    @SaCheckRole(Roles.SUPER_ADMIN)
+    @SaCheckRole(value = {Roles.SUPER_ADMIN, Roles.LEADER_GROUP}, mode = SaMode.OR)
     public Result<Void> removeLogo() {
         String previous = sysConfigService.find(ConfigKeys.CLUB_LOGO).orElse(null);
         sysConfigService.writeInternal(ConfigKeys.CLUB_LOGO, null);

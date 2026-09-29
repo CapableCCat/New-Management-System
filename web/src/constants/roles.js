@@ -89,5 +89,14 @@ export const canViewFeedback = (user) => canManageAll(user)
 /** 字典管理 —— 矩阵「字典管理」仅超管 */
 export const canManageDict = (user) => isSuperAdmin(user)
 
-/** 系统初始化 / 纳新设置 —— 矩阵「系统初始化/配置」仅超管 */
-export const canManageConfig = (user) => isSuperAdmin(user)
+/**
+ * 纳新设置 —— **T27 起放宽给社长团**（原来仅超管，《收尾需求》§5.3）。
+ *
+ * 为什么放宽：这一页放的是纳新运营配置（报名开关、审核时效文案、社团简介、社团 Logo、短信模板），
+ * 都是社长团日常要调的东西，每改一次都找超管没有意义。
+ *
+ * ⚠️ 但页面里**并非所有东西都跟着放宽**：**「存储维护」区块仍仅超管**（会真删对象存储的文件）——
+ * 它不依赖本函数，而是在 `SettingsView` 里单独用 `isSuperAdmin` 判定（T26 就上好了这道保险）。
+ * 另：**字典管理仍仅超管**（`canManageDict` 未改），那是系统级配置。
+ */
+export const canManageConfig = (user) => canManageAll(user)
