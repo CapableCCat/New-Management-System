@@ -1,17 +1,35 @@
 <script setup>
 /**
- * 内部场景统一外壳（T19 —— 取代原 MemberLayout / AdminLayout 两套界面）
+ * 内部场景统一外壳（T19 —— 取代原 MemberLayout / AdminLayout 两套界面；T22 加两级分组与图标）
  *
  * 全部内部页面共用这一套外壳，**菜单完全由路由表生成**（`router/menu.js`）：
- *   - 桌面：左侧菜单
- *   - 移动：底部 tabbar（菜单里 order 最小的 3 项）+「更多」抽屉
+ *   - 桌面：左侧菜单，**按 `MENU_GROUPS` 两级分组**，每项带图标
+ *   - 移动：底部 tabbar（组序最靠前的 3 项，带图标）+「更多」抽屉（同样分组）
+ *   - 右上角：账号区（头像/昵称）**hover 出下拉** —— 个人中心 / 退出登录（T22 从左侧菜单移上来）
  * 「谁能看到哪一项」只由路由 meta.menu.capability 决定 —— 与守卫判定同源（清单 §6 D108）。
  *
  * 因此这里不再有"管理端菜单 / 成员端菜单"，也不再需要「进入管理端 / 返回成员端」按钮。
+ *
+ * ⚠️ 本轮（T22）**只做分组 / 图标 / 账号区**，不改断点行为：
+ *    768~1024px 的「图标折叠态」是 T23 的事，现在仍是 `isMobile` 二选一（≥768 侧栏 / <768 底栏）。
  */
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
+import {
+  ArrowDown,
+  Bell,
+  ChatDotRound,
+  Collection,
+  DataAnalysis,
+  Finished,
+  HomeFilled,
+  Menu as MenuIcon,
+  Notebook,
+  Setting,
+  Upload,
+  UserFilled
+} from '@element-plus/icons-vue'
 import { APP_NAME, ROUTE_PATH } from '@/constants/app'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { useUserStore } from '@/stores/user'
@@ -19,47 +37,103 @@ import { useRouteMenu } from '@/router/menu'
 import AnnouncementBell from '@/components/AnnouncementBell.vue'
 import LocaleSwitch from '@/components/LocaleSwitch.vue'
 
+/**
+ * 菜单图标映射：路由 `meta.menu.icon` 存的是**组件名字符串**（路由表是纯数据，不该 import 组件），
+ * 这里做**显式**映射 —— 显式 import 才能被 tree-shake；漏配时降级为不显示图标（不报错）。
+ */
+const MENU_ICONS = {
+  Bell,
+  ChatDotRound,
+  Collection,
+  DataAnalysis,
+  Finished,
+  HomeFilled,
+  Notebook,
+  Setting,
+  Upload,
+  UserFilled
+}
+
 const isMobile = useIsMobile()
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
-const { items, tabbarItems } = useRouteMenu()
+const { groups, tabbarItems } = useRouteMenu()
 
 const drawerVisible = ref(false)
 const currentTitle = computed(() => route.meta.title || APP_NAME)
+const displayName = computed(() => userStore.profile?.name || '未登录')
+const avatarInitial = computed(() => (userStore.profile?.name || '?').slice(0, 1))
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '提示', { type: 'warning' })
-  } catch {
+function iconOf(name) {
+  return MENU_ICONS[name] || null
+}
+
+/** 右上角账号下拉：个人中心 / 退出登录 */
+async function onAccountCommand(command) {
+  if (command === 'profile') {
+    router.push(ROUTE_PATH.PROFILE)
     return
   }
-  userStore.clear()
-  router.replace({ path: ROUTE_PATH.LOGIN })
+  if (command === 'logout') {
+    try {
+      await ElMessageBox.confirm('确定要退出登录吗？', '提示', { type: 'warning' })
+    } catch {
+      return
+    }
+    userStore.clear()
+    router.replace({ path: ROUTE_PATH.LOGIN })
+  }
 }
 </script>
 
 <template>
   <div class="app-shell">
-    <!-- 桌面：左侧菜单 -->
+    <!-- 桌面：左侧菜单（两级分组 + 图标） -->
     <aside v-if="!isMobile" class="app-aside">
       <div class="app-brand">{{ APP_NAME }}</div>
       <el-menu :default-active="route.path" router class="app-menu">
-        <el-menu-item v-for="item in items" :key="item.path" :index="item.path">
-          {{ item.label }}
-        </el-menu-item>
+        <el-menu-item-group v-for="group in groups" :key="group.key" :title="group.label">
+          <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
+            <el-icon v-if="iconOf(item.icon)"><component :is="iconOf(item.icon)" /></el-icon>
+            <span>{{ item.label }}</span>
+          </el-menu-item>
+        </el-menu-item-group>
       </el-menu>
     </aside>
 
     <div class="app-body">
       <header class="app-header">
-        <el-button v-if="isMobile" text @click="drawerVisible = true">菜单</el-button>
+        <!-- 移动端折叠入口：用标准三横杠图标（原来的文字「菜单」不显眼，用户找不到 —— T22） -->
+        <button
+          v-if="isMobile"
+          class="app-menu-toggle"
+          type="button"
+          aria-label="打开菜单"
+          @click="drawerVisible = true"
+        >
+          <el-icon :size="20"><MenuIcon /></el-icon>
+        </button>
         <span class="app-title">{{ currentTitle }}</span>
         <div class="app-actions">
           <AnnouncementBell />
-          <span class="app-user">{{ userStore.profile?.name || '未登录' }}</span>
           <LocaleSwitch />
-          <el-button text size="small" @click="handleLogout">退出</el-button>
+          <!-- 账号区：hover 出下拉（个人中心 / 退出登录） -->
+          <el-dropdown trigger="hover" @command="onAccountCommand">
+            <span class="app-account">
+              <el-avatar :size="26" :src="userStore.profile?.avatarUrl || undefined">
+                {{ avatarInitial }}
+              </el-avatar>
+              <span class="app-user">{{ displayName }}</span>
+              <el-icon class="app-account__caret"><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </header>
 
@@ -68,7 +142,7 @@ async function handleLogout() {
       </main>
     </div>
 
-    <!-- 移动：底部 tabbar（高频 3 项 + 更多） -->
+    <!-- 移动：底部 tabbar（高频 3 项 + 更多，均带图标） -->
     <nav v-if="isMobile" class="app-tabbar">
       <router-link
         v-for="item in tabbarItems"
@@ -77,7 +151,8 @@ async function handleLogout() {
         class="app-tabbar__item"
         :class="{ 'is-active': route.path === item.path }"
       >
-        {{ item.label }}
+        <el-icon v-if="iconOf(item.icon)" :size="18"><component :is="iconOf(item.icon)" /></el-icon>
+        <span>{{ item.label }}</span>
       </router-link>
       <button
         class="app-tabbar__item app-tabbar__more"
@@ -85,16 +160,20 @@ async function handleLogout() {
         type="button"
         @click="drawerVisible = true"
       >
-        更多
+        <el-icon :size="18"><MenuIcon /></el-icon>
+        <span>更多</span>
       </button>
     </nav>
 
-    <!-- 移动：全部菜单（按资格生成的那一份） -->
-    <el-drawer v-model="drawerVisible" direction="ltr" size="240px" :title="APP_NAME">
+    <!-- 移动：全部菜单（按资格生成的那一份，同样分组 + 图标） -->
+    <el-drawer v-model="drawerVisible" direction="ltr" size="260px" :title="APP_NAME">
       <el-menu :default-active="route.path" router @select="drawerVisible = false">
-        <el-menu-item v-for="item in items" :key="item.path" :index="item.path">
-          {{ item.label }}
-        </el-menu-item>
+        <el-menu-item-group v-for="group in groups" :key="group.key" :title="group.label">
+          <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
+            <el-icon v-if="iconOf(item.icon)"><component :is="iconOf(item.icon)" /></el-icon>
+            <span>{{ item.label }}</span>
+          </el-menu-item>
+        </el-menu-item-group>
       </el-menu>
     </el-drawer>
   </div>
@@ -109,10 +188,10 @@ async function handleLogout() {
 .app-aside {
   display: flex;
   flex-direction: column;
-  width: 200px;
+  width: 208px;
   flex: none;
-  background: #fff;
-  border-right: 1px solid #ebeef5;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-color);
 }
 
 .app-brand {
@@ -124,6 +203,8 @@ async function handleLogout() {
 
 .app-menu {
   flex: 1;
+  /* 分组后条目变多，高度不够时允许滚动 */
+  overflow-y: auto;
   border-right: none;
 }
 
@@ -139,8 +220,25 @@ async function handleLogout() {
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: #fff;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.app-menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  color: var(--text-regular);
+  background: none;
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.app-menu-toggle:hover {
+  background: var(--el-fill-color-light, #f5f7fa);
+  color: var(--brand-primary);
 }
 
 .app-title {
@@ -151,13 +249,34 @@ async function handleLogout() {
 .app-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   margin-left: auto;
+}
+
+/* 账号区：hover 触发下拉（触发器本身也要有 hover 反馈，否则用户不知道这里能点） */
+.app-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  outline: none;
+}
+
+.app-account:hover,
+.app-account:focus-visible {
+  background: var(--el-fill-color-light, #f5f7fa);
 }
 
 .app-user {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-regular);
+}
+
+.app-account__caret {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .app-main {
@@ -179,17 +298,20 @@ async function handleLogout() {
   bottom: 0;
   left: 0;
   display: flex;
-  background: #fff;
-  border-top: 1px solid #ebeef5;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-color);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-tabbar__item {
+  display: flex;
   flex: 1;
-  padding: 10px 0;
-  text-align: center;
-  font-size: 13px;
-  color: #909399;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
   background: none;
   border: none;
   font-family: inherit;

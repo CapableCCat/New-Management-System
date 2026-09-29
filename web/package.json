@@ -16,6 +16,7 @@
     "format": "prettier --write \"src/**/*.{js,vue,scss}\""
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "@vant/area-data": "^2.2.0",
     "@wangeditor-next/editor": "^6.4.2",
     "@wangeditor-next/editor-for-vue": "^6.4.2",

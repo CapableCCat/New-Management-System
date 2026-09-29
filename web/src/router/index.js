@@ -1,8 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import {
-  canEditOwnProfile,
   canImportMembers,
-  canManageAnnouncement,
   canManageConfig,
   canManageDict,
   canManageMemberRoster,
@@ -27,8 +25,10 @@ import { setupRouterGuard } from './guard'
  * meta 说明：
  *   title  页面标题（也用作文档标题）
  *   task   该页面由哪个任务点实现（便于追账）
- *   menu   内部导航声明：`{ label, order, capability }`
- *          - 不写 `menu` 的路由不会出现在任何菜单里（公开页、404、改密页）
+ *   menu   内部导航声明：`{ label, order, group, icon, capability }`（T22 起支持两级分组）
+ *          - 不写 `menu` 的路由不会出现在任何菜单里（公开页、404、改密页、个人中心）
+ *          - `order` 是**组内**排序；`group` 见 `./menu.js` 的 `MENU_GROUPS`
+ *          - `icon` 是 Element Plus 图标组件名（字符串，由 AppShell 统一取）
  *          - `capability` 是 `constants/roles.js` 的具名能力函数，**守卫判定与菜单可见性共用它**
  *            （清单 §6 D108：加一个页面只改这一张表）
  */
@@ -74,19 +74,34 @@ const routes = [
         path: 'home',
         name: 'home',
         component: () => import('@/views/member/HomeView.vue'),
-        meta: { title: '工作台', task: 'T19', menu: { order: 10, capability: canViewDashboard } }
+        meta: {
+          title: '工作台',
+          task: 'T19',
+          menu: { order: 10, group: 'mine', icon: 'HomeFilled', capability: canViewDashboard }
+        }
       },
       {
         path: '/admin/audit',
         name: 'adminAudit',
         component: () => import('@/views/admin/AuditView.vue'),
-        meta: { title: '审核管理台', task: 'T7', menu: { order: 20, capability: canReviewRecruit } }
+        meta: {
+          title: '审核管理台',
+          task: 'T7',
+          menu: { order: 10, group: 'recruit', icon: 'Finished', capability: canReviewRecruit }
+        }
       },
       {
+        // T22：公告与「公告管理」**合并为一个菜单项**（原来两个菜单，功能重复）。
+        // 进入后按权限显示：成员只读；部长及以上多出「发布 / 编辑 / 删除」。
+        // 能力判定用「全员可看」，管理按钮由页面内部按 canManageAnnouncement 决定。
         path: 'announcement',
         name: 'announcement',
-        component: () => import('@/views/member/AnnouncementView.vue'),
-        meta: { title: '公告', task: 'T12', menu: { order: 30, capability: canViewAnnouncement } }
+        component: () => import('@/views/announcement/AnnouncementView.vue'),
+        meta: {
+          title: '公告',
+          task: 'T12',
+          menu: { order: 10, group: 'content', icon: 'Bell', capability: canViewAnnouncement }
+        }
       },
       {
         path: 'members',
@@ -95,7 +110,7 @@ const routes = [
         meta: {
           title: '成员列表',
           task: 'T10',
-          menu: { order: 40, capability: canViewMemberRoster }
+          menu: { order: 10, group: 'insight', icon: 'UserFilled', capability: canViewMemberRoster }
         }
       },
       {
@@ -105,54 +120,70 @@ const routes = [
         meta: {
           title: '成员档案',
           task: 'T10',
-          menu: { order: 50, capability: canManageMemberRoster }
+          menu: { order: 20, group: 'recruit', icon: 'Notebook', capability: canManageMemberRoster }
         }
       },
       {
+        // 老书签兼容：原「公告管理」页已并入 /announcement（T22）
         path: '/admin/announcement',
-        name: 'adminAnnouncement',
-        component: () => import('@/views/admin/AnnouncementAdminView.vue'),
-        meta: {
-          title: '公告管理',
-          task: 'T12',
-          menu: { order: 60, capability: canManageAnnouncement }
-        }
+        redirect: '/announcement'
       },
       {
         path: '/admin/feedback',
         name: 'adminFeedback',
         component: () => import('@/views/admin/FeedbackView.vue'),
-        meta: { title: '反馈列表', task: 'T16', menu: { order: 65, capability: canViewFeedback } }
+        meta: {
+          title: '反馈列表',
+          task: 'T16',
+          menu: { order: 30, group: 'insight', icon: 'ChatDotRound', capability: canViewFeedback }
+        }
       },
       {
         path: '/admin/dashboard',
         name: 'adminDashboard',
         component: () => import('@/views/admin/DashboardView.vue'),
-        meta: { title: '看板', task: 'T15', menu: { order: 70, capability: canViewDashboard } }
+        meta: {
+          title: '看板',
+          task: 'T15',
+          menu: { order: 20, group: 'insight', icon: 'DataAnalysis', capability: canViewDashboard }
+        }
       },
       {
         path: '/admin/import',
         name: 'adminImport',
         component: () => import('@/views/admin/ImportView.vue'),
-        meta: { title: 'Excel 导入', task: 'T13', menu: { order: 80, capability: canImportMembers } }
+        meta: {
+          title: 'Excel 导入',
+          task: 'T13',
+          menu: { order: 30, group: 'recruit', icon: 'Upload', capability: canImportMembers }
+        }
       },
       {
         path: '/admin/dict',
         name: 'adminDict',
         component: () => import('@/views/admin/DictView.vue'),
-        meta: { title: '字典管理', task: 'T5', menu: { order: 90, capability: canManageDict } }
+        meta: {
+          title: '字典管理',
+          task: 'T5',
+          menu: { order: 10, group: 'system', icon: 'Collection', capability: canManageDict }
+        }
       },
       {
         path: '/admin/settings',
         name: 'adminSettings',
         component: () => import('@/views/admin/SettingsView.vue'),
-        meta: { title: '纳新设置', task: 'T6', menu: { order: 100, capability: canManageConfig } }
+        meta: {
+          title: '纳新设置',
+          task: 'T6',
+          menu: { order: 20, group: 'system', icon: 'Setting', capability: canManageConfig }
+        }
       },
       {
+        // T22：个人中心**不再进左侧菜单**，改到右上角账号下拉里（路由保留，仍可直达）
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/member/ProfileView.vue'),
-        meta: { title: '个人中心', task: 'T11', menu: { order: 110, capability: canEditOwnProfile } }
+        meta: { title: '个人中心', task: 'T11' }
       },
       {
         // 首登强制改密的落点：不放进菜单
