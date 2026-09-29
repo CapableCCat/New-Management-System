@@ -3,6 +3,9 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getConfigList, removeClubLogo, updateConfig, uploadClubLogo } from '@/api/config'
 import { getRecruitInfo } from '@/api/recruit'
+import { cleanStorageOrphans, scanStorageOrphans } from '@/api/storage'
+import { isSuperAdmin } from '@/constants/roles'
+import { useUserStore } from '@/stores/user'
 
 /**
  * 纳新设置（仅超管，T6 新增；T20/O3 加 Logo 上传）
@@ -20,6 +23,83 @@ const loading = ref(false)
 const savingKey = ref('')
 const list = ref([])
 const form = reactive({})
+
+const userStore = useUserStore()
+
+/**
+ * 存储维护（T26）**仅超管可见**。
+ *
+ * ⚠️ 为什么在本页还要单独判一次：本页路由的能力是 `canManageConfig`，
+ * **T27 会把它放宽给社长团** —— 而"清理对象存储"是会真删东西的运维动作，必须留在超管手里。
+ * 所以这里显式用 `isSuperAdmin` 再拦一道，不依赖页面级权限。
+ */
+const showStorageTool = computed(() => isSuperAdmin(userStore.profile))
+
+/** 存储维护状态 */
+const orphanScanning = ref(false)
+const orphanCleaning = ref(false)
+const scanResult = ref(null)
+const selectedKeys = ref([])
+
+async function scanOrphans() {
+  orphanScanning.value = true
+  try {
+    scanResult.value = await scanStorageOrphans()
+    selectedKeys.value = []
+    if (!scanResult.value?.orphans?.length) {
+      ElMessage.success('扫描完成，没有发现孤儿文件')
+    }
+  } catch {
+    // 提示由 axios 拦截器统一处理
+  } finally {
+    orphanScanning.value = false
+  }
+}
+
+async function cleanOrphans() {
+  const keys = selectedKeys.value
+  if (!keys.length) {
+    ElMessage.warning('请先勾选要清理的对象')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${keys.length} 个对象吗？此操作不可撤销（对象存储里的文件会被真删）。`,
+      '危险操作',
+      { type: 'warning', confirmButtonText: '确认删除' }
+    )
+  } catch {
+    return
+  }
+  orphanCleaning.value = true
+  try {
+    const result = await cleanStorageOrphans(keys)
+    ElMessage.success(
+      `已清理 ${result.deleted} 个${result.skipped ? `，跳过 ${result.skipped} 个` : ''}${
+        result.failed?.length ? `，失败 ${result.failed.length} 个` : ''
+      }`
+    )
+    await scanOrphans()
+  } catch {
+    // 提示由拦截器处理
+  } finally {
+    orphanCleaning.value = false
+  }
+}
+
+/** 字节数 → 可读大小 */
+function sizeLabel(bytes) {
+  if (!bytes) {
+    return '0 B'
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
 
 /** Logo 相关状态 */
 const logoUrl = ref('')
@@ -301,6 +381,61 @@ onMounted(load)
         </div>
       </div>
     </section>
+
+    <!--
+      存储维护（T26，**仅超管**）—— 对象存储孤儿文件清理。
+      孤儿 = 在受管前缀（头像 / 公告配图 / 社团 Logo）下、但没有任何数据引用的对象。
+      刻意做成「先扫描、再清理」两步：扫描只读不删，清理必须显式勾选。
+    -->
+    <section v-if="showStorageTool" class="settings__block">
+      <h3 class="settings__title">存储维护</h3>
+      <div class="settings__hint">
+        换头像、删公告之后，旧图片会残留在对象存储里（没人引用了，但仍占空间）。这里可以扫出这些"孤儿"并清理。
+        <b>扫描只读、不会删任何东西</b>；清理要你先勾选、再确认，且只删受管目录下的文件。
+      </div>
+
+      <div class="settings__actions settings__actions--start">
+        <el-button :loading="orphanScanning" @click="scanOrphans">扫描孤儿文件</el-button>
+        <el-button
+          v-if="selectedKeys.length"
+          type="danger"
+          :loading="orphanCleaning"
+          @click="cleanOrphans"
+        >
+          清理选中的 {{ selectedKeys.length }} 个
+        </el-button>
+      </div>
+
+      <div v-if="scanResult" class="settings__storage-summary">
+        桶 <code>{{ scanResult.bucket }}</code>：受管对象
+        <b>{{ scanResult.totalObjects }}</b> 个，其中被引用
+        <b>{{ scanResult.referencedObjects }}</b> 个，<b class="is-danger">孤儿
+        {{ scanResult.orphans.length }}</b> 个（合计 {{ sizeLabel(scanResult.orphanBytes) }}）。
+        <template v-if="scanResult.truncated">清单已截断，只显示前 500 条。</template>
+        <template v-if="!scanResult.orphans.length">🎉 没有孤儿文件，无需清理。</template>
+      </div>
+
+      <el-table
+        v-if="scanResult?.orphans?.length"
+        :data="scanResult.orphans"
+        size="small"
+        border
+        max-height="320"
+        @selection-change="(rows) => (selectedKeys = rows.map((r) => r.key))"
+      >
+        <el-table-column type="selection" width="46" />
+        <el-table-column prop="kind" label="类型" width="90" />
+        <el-table-column prop="key" label="对象 key" min-width="240" show-overflow-tooltip />
+        <el-table-column label="大小" width="90">
+          <template #default="{ row }">{{ sizeLabel(row.size) }}</template>
+        </el-table-column>
+        <el-table-column label="最后修改" width="170">
+          <template #default="{ row }">
+            {{ row.lastModified ? row.lastModified.replace('T', ' ').slice(0, 19) : '—' }}
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
   </div>
 </template>
 
@@ -361,6 +496,28 @@ onMounted(load)
 .settings__remark {
   font-size: 12px;
   color: #c0c4cc;
+}
+
+/* 存储维护：按钮左对齐（不是"标签 + 按钮"那种两端对齐） */
+.settings__actions--start {
+  justify-content: flex-start;
+}
+
+.settings__storage-summary {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-regular);
+}
+
+.settings__storage-summary code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--border-color-light);
+}
+
+.settings__storage-summary .is-danger {
+  color: var(--el-color-danger);
 }
 
 /* Logo：预览框 + 操作按钮 */
