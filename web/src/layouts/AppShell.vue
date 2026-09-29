@@ -290,9 +290,18 @@ async function onAccountCommand(command) {
 <style scoped>
 .app-shell {
   display: flex;
-  min-height: 100%;
   /* 紧凑档悬停展开的浮层要相对这里定位 */
   position: relative;
+  /*
+   * T32：**撑满视口高度 + 内部各自滚动** —— 顶栏固定、侧栏与内容各滚各的。
+   * 改之前是 `min-height: 100%`（整页一起滚），所以内容一长，顶栏和侧栏都会被滚走。
+   *
+   * ⚠️ 用 `height: 100%`（沿 html/body/#app 的高度链）而**不是** `100dvh`：
+   *    手机浏览器地址栏收放时 dvh 会变化，容器高度跟着变 → 内容会重排、滚动位置会跳；
+   *    `100%` 跟踪的是布局视口，地址栏动它不动，更稳。
+   */
+  height: 100%;
+  overflow: hidden;
 }
 
 .app-aside {
@@ -384,12 +393,17 @@ async function onAccountCommand(command) {
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  /* min-height: 0 必须有：flex 子项默认 min-height: auto，内容一长它会被撑高，
+     那样内部滚动就失效了（T32） */
+  min-height: 0;
 }
 
 .app-header {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* flex: none —— 顶栏是固定高度条，不能被内容挤压（T32） */
+  flex: none;
   padding: 10px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-color);
@@ -453,6 +467,10 @@ async function onAccountCommand(command) {
 .app-main {
   flex: 1;
   min-width: 0;
+  /* T32：**内容在这里滚**（顶栏与侧栏不跟着动）。min-height: 0 是关键 ——
+     flex 子项默认 min-height: auto，不加它内容会被撑高而不是滚动 */
+  min-height: 0;
+  overflow-y: auto;
   /* 移动端给底部 tabbar 留出位置，避免最后一行被挡住 */
   padding-bottom: 56px;
 }
