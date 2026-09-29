@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 内部场景统一外壳（T19 —— 取代原 MemberLayout / AdminLayout 两套界面；T22 加两级分组与图标）
+ * 内部场景统一外壳（T19 —— 取代原 MemberLayout / AdminLayout 两套界面；T22 加两级分组与图标；T23 加三档响应式）
  *
  * 全部内部页面共用这一套外壳，**菜单完全由路由表生成**（`router/menu.js`）：
  *   - 桌面：左侧菜单，**按 `MENU_GROUPS` 两级分组**，每项带图标
@@ -8,12 +8,15 @@
  *   - 右上角：账号区（头像/昵称）**hover 出下拉** —— 个人中心 / 退出登录（T22 从左侧菜单移上来）
  * 「谁能看到哪一项」只由路由 meta.menu.capability 决定 —— 与守卫判定同源（清单 §6 D108）。
  *
- * 因此这里不再有"管理端菜单 / 成员端菜单"，也不再需要「进入管理端 / 返回成员端」按钮。
+ * 三档布局（T23，《V1.0 收尾需求》§4.5）：
+ *   ≥1024px    desktop  侧栏完整展开（图标 + 文字），无折叠按钮
+ *   768~1023px compact  侧栏**图标态**（64px）：鼠标移入临时展开为浮层；点折叠按钮可固定展开
+ *   <768px     mobile   隐藏侧栏，底部 tabbar + 「更多」抽屉
  *
- * ⚠️ 本轮（T22）**只做分组 / 图标 / 账号区**，不改断点行为：
- *    768~1024px 的「图标折叠态」是 T23 的事，现在仍是 `isMobile` 二选一（≥768 侧栏 / <768 底栏）。
+ * ⚠️ 用的是本文件专属的 `useLayoutMode`（三档），**不是** `useIsMobile`（只有 <768 一档，
+ *    被 13 个页面用来切表格/卡片，语义不能动）。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import {
@@ -31,7 +34,7 @@ import {
   UserFilled
 } from '@element-plus/icons-vue'
 import { APP_NAME, ROUTE_PATH } from '@/constants/app'
-import { useIsMobile } from '@/composables/useIsMobile'
+import { useLayoutMode } from '@/composables/useLayoutMode'
 import { useUserStore } from '@/stores/user'
 import { useRouteMenu } from '@/router/menu'
 import AnnouncementBell from '@/components/AnnouncementBell.vue'
@@ -54,13 +57,29 @@ const MENU_ICONS = {
   UserFilled
 }
 
-const isMobile = useIsMobile()
+const layoutMode = useLayoutMode()
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const { groups, tabbarItems } = useRouteMenu()
 
+const isMobile = computed(() => layoutMode.value === 'mobile')
+const isCompact = computed(() => layoutMode.value === 'compact')
+const isDesktop = computed(() => layoutMode.value === 'desktop')
+
 const drawerVisible = ref(false)
+/** 紧凑档：鼠标移入侧栏时临时展开（浮层，不挤内容） */
+const hoverExpand = ref(false)
+/** 紧凑档：点折叠按钮**固定**展开（占位推内容）—— 触屏没有 hover，必须有这条出路 */
+const pinnedExpand = ref(false)
+
+/** 侧栏是否处于「图标态」 */
+const menuCollapsed = computed(
+  () => isCompact.value && !hoverExpand.value && !pinnedExpand.value
+)
+/** 侧栏是否展开（含固定展开与悬停展开） */
+const menuExpanded = computed(() => !menuCollapsed.value)
+
 const currentTitle = computed(() => route.meta.title || APP_NAME)
 const displayName = computed(() => userStore.profile?.name || '未登录')
 const avatarInitial = computed(() => (userStore.profile?.name || '?').slice(0, 1))
@@ -68,6 +87,22 @@ const avatarInitial = computed(() => (userStore.profile?.name || '?').slice(0, 1
 function iconOf(name) {
   return MENU_ICONS[name] || null
 }
+
+/** 页头折叠按钮：手机档打开抽屉；紧凑档固定展开/收起侧栏 */
+function onToggleMenu() {
+  if (isMobile.value) {
+    drawerVisible.value = true
+    return
+  }
+  pinnedExpand.value = !pinnedExpand.value
+  hoverExpand.value = false
+}
+
+/** 切档时复位临时状态，避免「在紧凑档固定展开、拉宽到桌面后状态残留」 */
+watch(layoutMode, () => {
+  hoverExpand.value = false
+  pinnedExpand.value = false
+})
 
 /** 右上角账号下拉：个人中心 / 退出登录 */
 async function onAccountCommand(command) {
@@ -89,14 +124,28 @@ async function onAccountCommand(command) {
 
 <template>
   <div class="app-shell">
-    <!-- 桌面：左侧菜单（两级分组 + 图标） -->
-    <aside v-if="!isMobile" class="app-aside">
-      <div class="app-brand">{{ APP_NAME }}</div>
+    <!-- 桌面 / 紧凑：左侧菜单（两级分组 + 图标） -->
+    <aside
+      v-if="!isMobile"
+      class="app-aside"
+      :class="{
+        'is-compact': isCompact,
+        'is-expanded': isCompact && menuExpanded,
+        'is-pinned': isCompact && pinnedExpand
+      }"
+      @mouseenter="hoverExpand = true"
+      @mouseleave="hoverExpand = false"
+    >
+      <div class="app-brand">
+        <span class="app-brand__text">{{ APP_NAME }}</span>
+        <!-- 紧凑档图标态：品牌名缩成首字母，省空间 -->
+        <span v-if="menuCollapsed" class="app-brand__mark">O</span>
+      </div>
       <el-menu :default-active="route.path" router class="app-menu">
         <el-menu-item-group v-for="group in groups" :key="group.key" :title="group.label">
           <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
             <el-icon v-if="iconOf(item.icon)"><component :is="iconOf(item.icon)" /></el-icon>
-            <span>{{ item.label }}</span>
+            <span class="app-menu__label">{{ item.label }}</span>
           </el-menu-item>
         </el-menu-item-group>
       </el-menu>
@@ -104,13 +153,13 @@ async function onAccountCommand(command) {
 
     <div class="app-body">
       <header class="app-header">
-        <!-- 移动端折叠入口：用标准三横杠图标（原来的文字「菜单」不显眼，用户找不到 —— T22） -->
+        <!-- 手机档：打开菜单抽屉；紧凑档：固定展开 / 收起侧栏。统一用标准三横杠图标（T22 换掉了文字「菜单」） -->
         <button
-          v-if="isMobile"
+          v-if="!isDesktop"
           class="app-menu-toggle"
           type="button"
-          aria-label="打开菜单"
-          @click="drawerVisible = true"
+          :aria-label="isMobile ? '打开菜单' : '展开或收起菜单'"
+          @click="onToggleMenu"
         >
           <el-icon :size="20"><MenuIcon /></el-icon>
         </button>
@@ -142,7 +191,7 @@ async function onAccountCommand(command) {
       </main>
     </div>
 
-    <!-- 移动：底部 tabbar（高频 3 项 + 更多，均带图标） -->
+    <!-- 手机档：底部 tabbar（高频 3 项 + 更多，均带图标） -->
     <nav v-if="isMobile" class="app-tabbar">
       <router-link
         v-for="item in tabbarItems"
@@ -165,7 +214,7 @@ async function onAccountCommand(command) {
       </button>
     </nav>
 
-    <!-- 移动：全部菜单（按资格生成的那一份，同样分组 + 图标） -->
+    <!-- 手机档：全部菜单（按资格生成的那一份，同样分组 + 图标） -->
     <el-drawer v-model="drawerVisible" direction="ltr" size="260px" :title="APP_NAME">
       <el-menu :default-active="route.path" router @select="drawerVisible = false">
         <el-menu-item-group v-for="group in groups" :key="group.key" :title="group.label">
@@ -183,6 +232,8 @@ async function onAccountCommand(command) {
 .app-shell {
   display: flex;
   min-height: 100%;
+  /* 紧凑档悬停展开的浮层要相对这里定位 */
+  position: relative;
 }
 
 .app-aside {
@@ -194,11 +245,61 @@ async function onAccountCommand(command) {
   border-right: 1px solid var(--border-color);
 }
 
+/* ---------- 紧凑档（768~1023px）：图标态 ---------- */
+.app-aside.is-compact {
+  width: 64px;
+  transition: width var(--motion-fast) var(--motion-ease);
+}
+
+.app-aside.is-compact.is-expanded {
+  width: 208px;
+}
+
+/*
+ * 悬停展开用**浮层**：只改宽度会让右侧内容跟着抖动。
+ * 「点折叠按钮固定展开」时留在文档流里（is-pinned），因为那是用户的明确意图、可以挤内容。
+ */
+.app-aside.is-compact.is-expanded:not(.is-pinned) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  box-shadow: var(--shadow-popup);
+}
+
+/* 图标态：隐藏文字，图标居中；组标题退化成一条分隔线，保留分组感 */
+.app-aside.is-compact:not(.is-expanded) :deep(.app-menu__label) {
+  display: none;
+}
+
+.app-aside.is-compact:not(.is-expanded) :deep(.el-menu-item) {
+  justify-content: center;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.app-aside.is-compact:not(.is-expanded) .app-brand__text {
+  display: none;
+}
+
+.app-aside.is-compact.is-expanded .app-brand__mark {
+  display: none;
+}
+
 .app-brand {
+  display: flex;
+  align-items: center;
   padding: 16px;
   font-size: 15px;
   font-weight: 500;
   color: var(--brand-primary);
+  white-space: nowrap;
+}
+
+.app-brand__mark {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .app-menu {
@@ -206,6 +307,17 @@ async function onAccountCommand(command) {
   /* 分组后条目变多，高度不够时允许滚动 */
   overflow-y: auto;
   border-right: none;
+}
+
+/* 紧凑档图标态：组标题的留白太占高度，压成一条细分隔线（用 :deep 因为标题是 EP 内部渲染的） */
+.app-aside.is-compact:not(.is-expanded) :deep(.el-menu-item-group__title) {
+  height: 1px;
+  margin: 6px 14px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  background: var(--border-color);
 }
 
 .app-body {
