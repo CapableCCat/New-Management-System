@@ -6,6 +6,7 @@ import { areaList } from '@vant/area-data'
 import { getCaptcha } from '@/api/auth'
 import { submitApply } from '@/api/recruit'
 import { BRAND, SEMANTIC } from '@/constants/palette'
+import { PLACEHOLDER_COUNT, loadActivityPhotos } from '@/utils/activityPhotos'
 import { useDictStore } from '@/stores/dict'
 import { useRecruitStore } from '@/stores/recruit'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
@@ -43,6 +44,23 @@ const pickerShow = ref(false)
 const pickerKind = ref('college')
 const pickerValue = ref([])
 const areaShow = ref(false)
+
+/**
+ * 活动照片（F-001 第 1 步）。
+ * 素材放在 `web/public/activities/`（命名 01~05 + jpg/jpeg/png），放进去即生效、无需改代码。
+ * 一张都没有时显示占位块（社长要求「先开发、占位符占位」，素材到位后占位自动消失）。
+ */
+const activityPhotos = ref([])
+
+/** 轮播内容：有真照片就用真照片，没有就出占位块 */
+const gallerySlides = computed(() =>
+  activityPhotos.value.length
+    ? activityPhotos.value.map((src, index) => ({ src, alt: `活动照片 ${index + 1}` }))
+    : Array.from({ length: PLACEHOLDER_COUNT }, (_, index) => ({
+        src: '',
+        alt: `活动照片 ${index + 1}`
+      }))
+)
 
 const form = reactive({
   name: '',
@@ -317,6 +335,10 @@ onMounted(async () => {
     restoreDraft()
     await dictStore.loadMany(['college', 'major', 'department', 'tag'])
     refreshCaptcha()
+    // 活动照片与报名表单无关，失败也不影响报名，故不 await 阻塞
+    loadActivityPhotos().then((list) => {
+      activityPhotos.value = list
+    })
   }
 })
 
@@ -372,6 +394,29 @@ watch(form, saveDraft, { deep: true })
         <p v-for="(text, index) in introParagraphs" :key="index" class="apply__intro-p">
           {{ text }}
         </p>
+      </section>
+
+      <!--
+        活动照片轮播（PRD F-001 第 1 步）。
+        素材放 `web/public/activities/`（命名 01~05 + jpg/jpeg/png），放进去即生效。
+        当前无素材 → 显示 3 个占位块；素材到位后占位块自动消失。
+      -->
+      <section class="apply__gallery">
+        <van-swipe
+          class="apply__swipe"
+          :autoplay="3500"
+          :show-indicators="gallerySlides.length > 1"
+          indicator-color="white"
+        >
+          <van-swipe-item v-for="(slide, index) in gallerySlides" :key="index">
+            <img v-if="slide.src" class="apply__shot" :src="slide.src" :alt="slide.alt" />
+            <!-- 占位块：素材放进来之后就不会再走到这个分支 -->
+            <div v-else class="apply__shot-ph">
+              <span>{{ slide.alt }}</span>
+              <span class="apply__shot-ph-tip">照片放 web/public/activities/ 即可替换</span>
+            </div>
+          </van-swipe-item>
+        </van-swipe>
       </section>
 
       <van-form @submit="onSubmit">
@@ -581,6 +626,50 @@ watch(form, saveDraft, { deep: true })
 
 .apply__intro-p:last-child {
   margin-bottom: 0;
+}
+
+/* 活动照片轮播（F-001 第 1 步）—— 与简介之间留一个板块间距 */
+.apply__gallery {
+  margin: 0 12px 16px;
+}
+
+.apply__swipe {
+  border-radius: var(--radius-popup);
+  overflow: hidden;
+  /* 轮播是首屏内容，固定高度避免图片加载前后布局跳动（16:10 左右，横图合适） */
+  height: 180px;
+  background: var(--bg-page);
+}
+
+.apply__shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 占位块：素材未到位时显示（放图后自动消失） */
+.apply__shot-ph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--border-color-light),
+    var(--border-color-light) 10px,
+    var(--bg-surface) 10px,
+    var(--bg-surface) 20px
+  );
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.apply__shot-ph-tip {
+  font-size: 11px;
+  color: var(--text-placeholder);
 }
 
 .apply__chips {
