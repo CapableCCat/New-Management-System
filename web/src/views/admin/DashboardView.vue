@@ -15,6 +15,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getMemberStats, getRecruitStats } from '@/api/dashboard'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { BRAND, CATEGORY_PALETTE, MAP_RAMP, NEUTRAL, SERIES_COLOR, hexToRgba } from '@/constants/palette'
 import BaseChart from '@/components/BaseChart.vue'
 import { CHINA_MAP_NAME, ensureChinaMap } from '@/utils/echarts'
 
@@ -25,7 +26,7 @@ const member = ref(null)
 const recruit = ref(null)
 const mapReady = ref(false)
 
-const PALETTE = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#9c27b0', '#00bcd4', '#ff9800']
+/** 图表配色一律取自 `constants/palette.js`（T21 收敛的单一出处）——不在本文件里写死色值 */
 const CHART_HEIGHT = computed(() => (isMobile.value ? '240px' : '300px'))
 /**
  * 地图高度按**卡片宽度**来配：这份区划数据的外接框（含南海诸岛，最南到 3°N 附近）
@@ -62,7 +63,7 @@ function pieOption(list) {
   return {
     tooltip: { trigger: 'item', formatter: '{b}：{c} 人（{d}%）' },
     legend: { type: 'scroll', bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8 },
-    color: PALETTE,
+    color: CATEGORY_PALETTE,
     series: [
       {
         type: 'pie',
@@ -86,20 +87,20 @@ const majorOption = computed(() => ({
   xAxis: {
     type: 'category',
     data: majors.value.map((item) => item.name),
-    axisLabel: { interval: 0, rotate: 35, fontSize: 11, color: '#606266' },
+    axisLabel: { interval: 0, rotate: 35, fontSize: 11, color: NEUTRAL.axisLabel },
     axisTick: { show: false }
   },
   yAxis: {
     type: 'value',
     minInterval: 1,
-    splitLine: { lineStyle: { color: '#f0f2f5' } },
-    axisLabel: { color: '#909399' }
+    splitLine: { lineStyle: { color: NEUTRAL.splitLine } },
+    axisLabel: { color: NEUTRAL.axisLabelMuted }
   },
   series: [
     {
       type: 'bar',
       barMaxWidth: 26,
-      itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] },
+      itemStyle: { color: SERIES_COLOR, borderRadius: [4, 4, 0, 0] },
       data: majors.value.map((item) => item.value)
     }
   ]
@@ -127,8 +128,8 @@ const mapOption = computed(() => {
       itemHeight: 78,
       text: ['多', '少'],
       calculable: true,
-      inRange: { color: ['#e8f3ff', '#9ecbff', '#409eff', '#1c5fa8'] },
-      textStyle: { color: '#606266', fontSize: 11 }
+      inRange: { color: MAP_RAMP },
+      textStyle: { color: NEUTRAL.axisLabel, fontSize: 11 }
     },
     series: [
       {
@@ -137,10 +138,10 @@ const mapOption = computed(() => {
         roam: false,
         zoom: 1.05,
         label: { show: false },
-        itemStyle: { areaColor: '#f7f8fa', borderColor: '#dcdfe6' },
+        itemStyle: { areaColor: NEUTRAL.mapArea, borderColor: NEUTRAL.mapBorder },
         emphasis: {
-          label: { show: true, fontSize: 11, color: '#303133' },
-          itemStyle: { areaColor: '#ffe58f' }
+          label: { show: true, fontSize: 11, color: NEUTRAL.textPrimary },
+          itemStyle: { areaColor: NEUTRAL.mapHighlight }
         },
         data: provinces.value.map((item) => ({ name: item.name, value: item.value }))
       }
@@ -159,21 +160,21 @@ const trendOption = computed(() => ({
     type: 'category',
     boundaryGap: false,
     data: trend.value.map((item) => item.date),
-    axisLabel: { color: '#606266', fontSize: 11 },
+    axisLabel: { color: NEUTRAL.axisLabel, fontSize: 11 },
     axisTick: { show: false }
   },
   yAxis: {
     type: 'value',
     minInterval: 1,
-    splitLine: { lineStyle: { color: '#f0f2f5' } },
-    axisLabel: { color: '#909399' }
+    splitLine: { lineStyle: { color: NEUTRAL.splitLine } },
+    axisLabel: { color: NEUTRAL.axisLabelMuted }
   },
   series: [
     {
       type: 'line',
       smooth: true,
       symbolSize: 6,
-      itemStyle: { color: '#409eff' },
+      itemStyle: { color: SERIES_COLOR },
       lineStyle: { width: 2 },
       areaStyle: {
         color: {
@@ -182,9 +183,10 @@ const trendOption = computed(() => ({
           y: 0,
           x2: 0,
           y2: 1,
+          // 渐变色由品牌主色推出来，避免手写 rgba 与主色脱节（换主色时这一处自动跟随）
           colorStops: [
-            { offset: 0, color: 'rgba(64,158,255,0.28)' },
-            { offset: 1, color: 'rgba(64,158,255,0.02)' }
+            { offset: 0, color: hexToRgba(BRAND.primary, 0.28) },
+            { offset: 1, color: hexToRgba(BRAND.primary, 0.02) }
           ]
         }
       },
@@ -321,12 +323,12 @@ const trendOption = computed(() => ({
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .dashboard__source {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .dashboard__metric-row {
@@ -342,9 +344,9 @@ const trendOption = computed(() => ({
   gap: 2px;
   min-width: 108px;
   padding: 12px 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--border-color);
   border-radius: var(--brand-radius);
-  background: #fff;
+  background: var(--bg-surface);
 }
 
 .dashboard__metric--primary {
@@ -359,21 +361,22 @@ const trendOption = computed(() => ({
   color: var(--brand-primary);
 }
 
+/* 语义色直接取 Element Plus 的语义 token，不再散落十六进制 */
 .dashboard__metric-value--pending {
-  color: #e6a23c;
+  color: var(--el-color-warning);
 }
 
 .dashboard__metric-value--ok {
-  color: #67c23a;
+  color: var(--el-color-success);
 }
 
 .dashboard__metric-value--no {
-  color: #f56c6c;
+  color: var(--el-color-danger);
 }
 
 .dashboard__metric-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .dashboard__grid {

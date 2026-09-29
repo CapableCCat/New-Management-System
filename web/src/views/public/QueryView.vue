@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getCaptcha } from '@/api/auth'
 import { queryApplyStatus } from '@/api/recruit'
+import { SEMANTIC } from '@/constants/palette'
 import { useRecruitStore } from '@/stores/recruit'
 
 /**
@@ -41,7 +42,7 @@ const statusView = computed(() => {
   if (result.value?.status === STATUS.APPROVED) {
     return {
       icon: 'passed',
-      color: '#67c23a',
+      color: SEMANTIC.success,
       title: '恭喜！你的报名已通过审核',
       text: '请用报名手机号 + 审核台发放的初始密码登录（首次登录会要求修改密码）。'
     }
@@ -49,14 +50,14 @@ const statusView = computed(() => {
   if (result.value?.status === STATUS.REJECTED) {
     return {
       icon: 'warning-o',
-      color: '#f56c6c',
+      color: SEMANTIC.danger,
       title: '很抱歉，你的报名未通过审核',
       text: `原因：${result.value?.rejectReason || '管理员未填写原因，可联系社长团了解'}`
     }
   }
   return {
     icon: 'clock-o',
-    color: '#e6a23c',
+    color: SEMANTIC.warning,
     title: '你的报名正在审核中，请耐心等待',
     text: info.reviewNotice || '审核完成后可再次查询结果。'
   }

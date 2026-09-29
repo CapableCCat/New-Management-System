@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { areaList } from '@vant/area-data'
 import { getCaptcha } from '@/api/auth'
 import { submitApply } from '@/api/recruit'
+import { BRAND, SEMANTIC } from '@/constants/palette'
 import { useDictStore } from '@/stores/dict'
 import { useRecruitStore } from '@/stores/recruit'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
@@ -99,7 +100,7 @@ const resultCard = computed(() => {
   if (result.value?.nextAction === NEXT_LOGIN) {
     return {
       icon: 'friends-o',
-      color: '#409eff',
+      color: BRAND.primary,
       title: '该手机号已是正式成员',
       lines: [message],
       primary: { label: '去登录', to: { path: '/login', query: { phone } } },
@@ -122,7 +123,7 @@ const resultCard = computed(() => {
   }
   return {
     icon: alreadyPending ? 'info-o' : 'passed',
-    color: alreadyPending ? '#e6a23c' : '#67c23a',
+    color: alreadyPending ? SEMANTIC.warning : SEMANTIC.success,
     title: titleByState[result.value?.state] || '报名提交成功',
     lines,
     primary: { label: '去查询审核进度', to: { path: '/query', query: { phone } } },
